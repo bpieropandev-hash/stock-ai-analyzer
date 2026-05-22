@@ -3,9 +3,9 @@ spring:
     name: stock-ai-analyzer-backend
 
   datasource:
-    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:stockai}
-    username: ${POSTGRES_USER:stockai_user}
-    password: ${POSTGRES_PASSWORD:change_me}
+    url: jdbc:postgresql://localhost:5432/stockai
+    username: stockai_user
+    password: change_me
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -26,3 +26,16 @@ spring:
 python:
   script:
     path: ${PYTHON_SCRIPT_PATH:scripts/fetch_stock.py}
+    fundamentals-path: ${PYTHON_FUNDAMENTALS_PATH:scripts/fetch_fundamentals.py}
+
+ollama:
+  base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  embedding:
+    model: nomic-embed-text
+    dimension: 768
+  chat:
+    model: llama3.2:3b
+
+embedding:
+  store:
+    table: stock_embeddings

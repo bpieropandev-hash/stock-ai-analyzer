@@ -63,3 +63,19 @@ O score é composto por 6 dimensões independentes, cada uma com peso e explica�
 - **Idioma do código**: inglês — nomes de variáveis, métodos, classes e pacotes sempre em inglês.
 - **Idioma dos comentários**: português — todos os comentários inline e Javadoc em português.
 - Comentários apenas quando o *porquê* não é óbvio; não descrever o que o código já expressa.
+
+## Regras de Qualidade
+
+### Dependências Maven
+- NUNCA adicione uma dependência sem antes verificar a versão exata no Maven Central (https://central.sonatype.com)
+- SEMPRE rode `mvn dependency:resolve` após alterar o pom.xml para confirmar que as dependências baixam corretamente
+- NUNCA unifique versões de módulos LangChain4j em uma única propriedade se eles tiverem ciclos de release diferentes
+- Se uma versão não for encontrada, pesquise a versão mais recente disponível antes de tentar outra
+
+### Build
+- SEMPRE verifique se o projeto compila com `mvn clean compile` após qualquer alteração estrutural
+- Se houver erro de compilação, corrija antes de continuar
+
+### Imports Java
+- NUNCA use uma classe sem verificar se ela existe na versão da dependência declarada no pom.xml
+- Spring Boot 4 usa `tools.jackson.*` e não `com.fasterxml.jackson.*`

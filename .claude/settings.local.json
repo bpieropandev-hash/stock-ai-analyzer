@@ -6,7 +6,13 @@
       "PowerShell(ls backend\\\\src -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object FullName)",
       "PowerShell(cmd /c \"dir /s /b backend\\\\src\")",
       "PowerShell(cmd /c \"dir /s /b backend\\\\src\\\\main\\\\java\")",
-      "PowerShell(New-Item *)"
+      "PowerShell(New-Item *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\berna\\\\OneDrive\\\\Área de Trabalho\\\\Projetos\\\\stock-ai-analyzer\" -Recurse -Depth 2)",
+      "Bash(Select-Object FullName)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(docker exec stock-ai-postgres *)"
     ]
   }
 }
