@@ -1,0 +1,13 @@
+package com.stockai;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class StockAiAnalyzerBackendApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(StockAiAnalyzerBackendApplication.class, args);
+	}
+
+}
