@@ -28,6 +28,7 @@ python:
     path: ${PYTHON_SCRIPT_PATH:scripts/fetch_stock.py}
     fundamentals-path: ${PYTHON_FUNDAMENTALS_PATH:scripts/fetch_fundamentals.py}
     macro-path: ${PYTHON_MACRO_PATH:scripts/fetch_macro.py}
+    historical-fundamentals-path: ${PYTHON_HISTORICAL_PATH:scripts/fetch_historical_fundamentals.py}
 
 ollama:
   base-url: ${OLLAMA_BASE_URL:http://localhost:11434}

@@ -7,6 +7,8 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingStore;
+import dev.langchain4j.store.embedding.filter.Filter;
+import dev.langchain4j.store.embedding.filter.MetadataFilterBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,6 +32,7 @@ public class StockAnalysisService {
     private final EmbeddingStore<TextSegment> embeddingStore;
     private final ChatModel chatModel;
     private final ObjectMapper objectMapper;
+    private final StockEmbeddingService embeddingService;
 
     @Value("${python.script.fundamentals-path:scripts/fetch_fundamentals.py}")
     private String fundamentalsScriptPath;
@@ -41,11 +44,13 @@ public class StockAnalysisService {
             EmbeddingModel embeddingModel,
             EmbeddingStore<TextSegment> embeddingStore,
             ChatModel chatModel,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            StockEmbeddingService embeddingService) {
         this.embeddingModel = embeddingModel;
         this.embeddingStore = embeddingStore;
         this.chatModel = chatModel;
         this.objectMapper = objectMapper;
+        this.embeddingService = embeddingService;
     }
 
     public StockAnalysis analyze(String ticker) throws Exception {
@@ -55,7 +60,9 @@ public class StockAnalysisService {
         String prompt = buildPrompt(fundamentals, macro, context);
         String rawResponse = chatModel.chat(prompt);
         log.debug("Resposta bruta do LLM para {}: {}", ticker, rawResponse);
-        return parseAnalysis(ticker, sanitize(rawResponse));
+        StockAnalysis analysis = parseAnalysis(ticker, sanitize(rawResponse));
+        indexAnalysis(analysis, fundamentals);
+        return analysis;
     }
 
     // -------------------------------------------------------------------------
@@ -103,10 +110,14 @@ public class StockAnalysisService {
                     .embed(TextSegment.from(buildFundamentalsText(fundamentals)))
                     .content();
 
+            Filter tickerFilter = MetadataFilterBuilder.metadataKey("ticker")
+                    .isEqualTo(fundamentals.ticker());
+
             List<EmbeddingMatch<TextSegment>> matches = embeddingStore.search(
                     EmbeddingSearchRequest.builder()
                             .queryEmbedding(queryEmbedding)
                             .maxResults(3)
+                            .filter(tickerFilter)
                             .build()
             ).matches();
 
@@ -296,6 +307,14 @@ public class StockAnalysisService {
         return new DimensionScore(
                 node.path("score").asDouble(0.0),
                 node.path("explicacao").asString("N/D"));
+    }
+
+    private void indexAnalysis(StockAnalysis analysis, StockFundamentals fundamentals) {
+        try {
+            embeddingService.embedAndStoreAnalysis(analysis, fundamentals);
+        } catch (Exception e) {
+            log.warn("Falha ao indexar análise para {} — RAG não afetado: {}", analysis.ticker(), e.getMessage());
+        }
     }
 
     private StockAnalysis fallbackAnalysis(String ticker) {
