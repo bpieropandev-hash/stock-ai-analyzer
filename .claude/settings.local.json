@@ -4,7 +4,9 @@
       "PowerShell(cmd /c \"dir /a /b \"\"C:\\\\Users\\\\berna\\\\OneDrive\\\\Área de Trabalho\\\\Projetos\\\\stock-ai-analyzer\\\\backend\"\"\")",
       "PowerShell(Get-ChildItem -Path \"backend\" -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object FullName)",
       "PowerShell(ls backend\\\\src -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object FullName)",
-      "PowerShell(cmd /c \"dir /s /b backend\\\\src\")"
+      "PowerShell(cmd /c \"dir /s /b backend\\\\src\")",
+      "PowerShell(cmd /c \"dir /s /b backend\\\\src\\\\main\\\\java\")",
+      "PowerShell(New-Item *)"
     ]
   }
 }

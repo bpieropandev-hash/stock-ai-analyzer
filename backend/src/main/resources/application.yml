@@ -22,3 +22,7 @@ spring:
       host: localhost
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:change_me}
+
+python:
+  script:
+    path: ${PYTHON_SCRIPT_PATH:scripts/fetch_stock.py}
