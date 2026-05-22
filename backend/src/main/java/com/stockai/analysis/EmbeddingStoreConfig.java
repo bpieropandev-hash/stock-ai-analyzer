@@ -59,6 +59,8 @@ public class EmbeddingStoreConfig {
                 .baseUrl(ollamaBaseUrl)
                 .modelName(chatModelName)
                 .responseFormat(ResponseFormat.JSON)
+                .temperature(0.2)
+                .numCtx(8192)
                 .build();
     }
 
