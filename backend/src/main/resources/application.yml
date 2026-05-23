@@ -1,11 +1,14 @@
 spring:
+  config:
+    import: optional:file:../.env[.properties]
+
   application:
     name: stock-ai-analyzer-backend
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/stockai
-    username: stockai_user
-    password: change_me
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:stockai}
+    username: ${POSTGRES_USER:stockai_user}
+    password: ${POSTGRES_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -19,9 +22,14 @@ spring:
 
   data:
     redis:
-      host: localhost
+      host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:change_me}
+      password: ${REDIS_PASSWORD}
+
+pgvector:
+  host: ${POSTGRES_HOST:localhost}
+  port: ${POSTGRES_PORT:5432}
+  database: ${POSTGRES_DB:stockai}
 
 python:
   script:
@@ -29,6 +37,10 @@ python:
     fundamentals-path: ${PYTHON_FUNDAMENTALS_PATH:scripts/fetch_fundamentals.py}
     macro-path: ${PYTHON_MACRO_PATH:scripts/fetch_macro.py}
     historical-fundamentals-path: ${PYTHON_HISTORICAL_PATH:scripts/fetch_historical_fundamentals.py}
+    sentiment-path: ${PYTHON_SENTIMENT_PATH:scripts/analyze_sentiment.py}
+
+huggingface:
+  token: ${HUGGINGFACE_TOKEN:}
 
 ollama:
   base-url: ${OLLAMA_BASE_URL:http://localhost:11434}

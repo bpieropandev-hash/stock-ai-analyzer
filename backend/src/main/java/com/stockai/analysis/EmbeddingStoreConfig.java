@@ -40,6 +40,15 @@ public class EmbeddingStoreConfig {
     @Value("${ollama.chat.model:llama3}")
     private String chatModelName;
 
+    @Value("${pgvector.host:localhost}")
+    private String pgHost;
+
+    @Value("${pgvector.port:5432}")
+    private int pgPort;
+
+    @Value("${pgvector.database:stockai}")
+    private String pgDatabase;
+
     @Value("${spring.datasource.username}")
     private String datasourceUser;
 
@@ -51,6 +60,7 @@ public class EmbeddingStoreConfig {
         return OllamaEmbeddingModel.builder()
                 .baseUrl(ollamaBaseUrl)
                 .modelName(embeddingModelName)
+                .timeout(Duration.ofMinutes(3))
                 .build();
     }
 
@@ -80,12 +90,11 @@ public class EmbeddingStoreConfig {
     }
 
     private EmbeddingStore<TextSegment> buildEmbeddingStore() {
-        log.info("Datasource user = {}", datasourceUser);
-        log.info("Datasource password = [{}]", datasourcePassword);
+        log.info("PgVector — host={} port={} db={} user={}", pgHost, pgPort, pgDatabase, datasourceUser);
         return PgVectorEmbeddingStore.builder()
-                .host("localhost")
-                .port(5432)
-                .database("stockai")
+                .host(pgHost)
+                .port(pgPort)
+                .database(pgDatabase)
                 .user(datasourceUser)
                 .password(datasourcePassword)
                 .table(tableName)

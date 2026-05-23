@@ -50,6 +50,12 @@ public class StockAnalysisService {
     @Value("${python.script.news-path:scripts/fetch_news.py}")
     private String newsScriptPath;
 
+    @Value("${python.script.sentiment-path:scripts/analyze_sentiment.py}")
+    private String sentimentScriptPath;
+
+    @Value("${huggingface.token:}")
+    private String huggingfaceToken;
+
     public StockAnalysisService(
             EmbeddingModel embeddingModel,
             EmbeddingStore<TextSegment> embeddingStore,
@@ -81,7 +87,8 @@ public class StockAnalysisService {
         MacroData macro = fetchMacro();
         List<NewsItem> news = fetchNews(ticker);
         String context = retrieveContext(fundamentals);
-        String prompt = buildPrompt(fundamentals, macro, context, news);
+        SentimentResult sentiment = fetchSentiment(news);
+        String prompt = buildPrompt(fundamentals, macro, context, sentiment);
         String rawResponse = chatModel.chat(prompt);
         log.debug("Resposta bruta do LLM para {}: {}", ticker, rawResponse);
         StockAnalysis analysis = parseAnalysis(ticker, sanitize(rawResponse));
@@ -157,6 +164,43 @@ public class StockAnalysisService {
         }
     }
 
+    /** Retorna score neutro (5.0) se a lista estiver vazia ou o script falhar. */
+    private SentimentResult fetchSentiment(List<NewsItem> news) {
+        if (news == null || news.isEmpty()) {
+            return new SentimentResult(5.0, 0, 0, 0, 0.0);
+        }
+        try {
+            List<String> titles = news.stream()
+                    .map(NewsItem::title)
+                    .filter(t -> t != null && !t.isBlank())
+                    .collect(Collectors.toList());
+            if (titles.isEmpty()) return new SentimentResult(5.0, 0, 0, 0, 0.0);
+
+            String titlesJson = objectMapper.writeValueAsString(titles);
+            ProcessBuilder pb = new ProcessBuilder("python", sentimentScriptPath, titlesJson);
+            pb.environment().put("HUGGINGFACE_TOKEN", huggingfaceToken);
+            Process process = pb.start();
+            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+            process.waitFor();
+
+            if (!stderr.isBlank()) log.warn("analyze_sentiment.py: {}", stderr.strip());
+            if (stdout.isBlank()) return new SentimentResult(5.0, 0, 0, news.size(), 0.0);
+
+            JsonNode root = objectMapper.readTree(stdout.strip());
+            return new SentimentResult(
+                    root.path("sentimentScore").asDouble(5.0),
+                    root.path("distribution").path("positive").asInt(0),
+                    root.path("distribution").path("negative").asInt(0),
+                    root.path("distribution").path("neutral").asInt(0),
+                    root.path("confidence").asDouble(0.0)
+            );
+        } catch (Exception e) {
+            log.warn("Falha ao calcular sentimento FinBERT: {}", e.getMessage());
+            return new SentimentResult(5.0, 0, 0, 0, 0.0);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // RAG — recuperação de contexto histórico
     // -------------------------------------------------------------------------
@@ -192,9 +236,9 @@ public class StockAnalysisService {
     // Construção do prompt
     // -------------------------------------------------------------------------
 
-    private String buildPrompt(StockFundamentals f, MacroData macro, String context, List<NewsItem> news) {
+    private String buildPrompt(StockFundamentals f, MacroData macro, String context, SentimentResult sentiment) {
         String macroSection = macro != null ? buildMacroText(macro) : "Dados macroeconômicos indisponíveis.";
-        String newsSection = buildNewsText(news);
+        String sentimentSection = buildSentimentText(sentiment);
         return """
                 Responda APENAS com JSON válido, sem markdown, sem ```json, sem texto antes ou depois. Baseie sua análise EXCLUSIVAMENTE nos dados fornecidos no contexto.
 
@@ -206,7 +250,6 @@ public class StockAnalysisService {
                 CONTEXTO MACROECONÔMICO:
                 %s
 
-                NOTÍCIAS RECENTES (últimas 24h):
                 %s
 
                 CONTEXTO HISTÓRICO (RAG):
@@ -216,10 +259,9 @@ public class StockAnalysisService {
                 - Fundamentos: qualidade dos resultados, margens, ROE/ROA e crescimento
                 - Valuation: P/L e P/VPA vs setor; FCL como suporte ao preço justo
                 - Regime/Momentum: tendência trimestral de receita/lucro e impacto do câmbio USD/BRL
-                - Sentimento Institucional: beta, amplitude 52 semanas e volume médio
+                - Sentimento Institucional: use o score FinBERT como base objetiva, ajustando por beta e amplitude 52 semanas
                 - Retorno ao Acionista: dividend yield, consistência do histórico de dividendos e FCL
                 - Gestão de Risco: Selic eleva custo de capital; dívida/patrimônio e exposição cambial
-                - Use as notícias recentes para calibrar especialmente as dimensões sentimentoInstitucional e regimeMomentum
 
                 Responda SOMENTE com JSON válido, sem texto adicional, sem markdown.
 
@@ -233,7 +275,18 @@ public class StockAnalysisService {
                   "scoreGeral": <média dos 6 scores>,
                   "resumo": "<síntese em 2 frases>"
                 }
-                """.formatted(buildFundamentalsText(f), macroSection, newsSection, context);
+                """.formatted(buildFundamentalsText(f), macroSection, sentimentSection, context);
+    }
+
+    private String buildSentimentText(SentimentResult s) {
+        return """
+                ANÁLISE DE SENTIMENTO DAS NOTÍCIAS (FinBERT):
+                Score: %.2f/10
+                Distribuição: %d positivas, %d negativas, %d neutras
+                Confiança média: %.2f
+
+                Use este score como base objetiva para sentimentoInstitucional, ajustando pelo contexto macro e risco político."""
+                .formatted(s.score(), s.positiveCount(), s.negativeCount(), s.neutralCount(), s.confidence());
     }
 
     private String buildFundamentalsText(StockFundamentals f) {
@@ -288,22 +341,6 @@ public class StockAnalysisService {
                         fmt(m.selicPct()), fmt(m.ipca12mPct()), fmt(m.usdBrl()),
                         fmt(m.brentPrice()), fmt(m.brentChangePct()),
                         fmt(m.wtiPrice()), fmt(m.wtiChangePct()));
-    }
-
-    private String buildNewsText(List<NewsItem> news) {
-        if (news == null || news.isEmpty()) return "Sem notícias recentes disponíveis.";
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < news.size(); i++) {
-            NewsItem item = news.get(i);
-            sb.append(i + 1).append(". ").append(item.title()).append("\n");
-            if (item.description() != null && !item.description().isBlank()) {
-                sb.append("   ").append(item.description()).append("\n");
-            }
-            if (item.publishedAt() != null && !item.publishedAt().isBlank()) {
-                sb.append("   Publicado: ").append(item.publishedAt()).append("\n");
-            }
-        }
-        return sb.toString().strip();
     }
 
     // -------------------------------------------------------------------------

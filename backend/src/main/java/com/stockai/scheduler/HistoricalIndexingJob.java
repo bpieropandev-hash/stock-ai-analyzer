@@ -29,13 +29,18 @@ public class HistoricalIndexingJob {
         this.objectMapper = objectMapper;
     }
 
-    @Scheduled(fixedDelay = 86_400_000)
+    @Scheduled(initialDelay = 300_000, fixedDelay = 86_400_000)
     public void indexHistoricalFundamentals() {
         log.info("Iniciando indexação de fundamentos históricos — {} tickers", StockFetchJob.TICKERS.size());
         int total = 0;
         for (String ticker : StockFetchJob.TICKERS) {
             try {
                 total += indexTicker(ticker);
+                Thread.sleep(500);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.warn("Indexação histórica interrompida em {}", ticker);
+                break;
             } catch (Exception e) {
                 log.warn("Falha ao indexar histórico de {}: {}", ticker, e.getMessage());
             }
