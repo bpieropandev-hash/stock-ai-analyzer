@@ -7,6 +7,10 @@ Séries utilizadas:
   432 — Taxa Selic definida pelo Copom (% a.a.)
   433 — IPCA - variação mensal (%)
     1 — Taxa de câmbio USD/BRL - comercial (compra)
+
+Commodities via yfinance:
+  BZ=F — Brent Crude Oil Futures
+  CL=F — WTI Crude Oil Futures
 """
 
 import json
@@ -14,6 +18,8 @@ import math
 import sys
 import urllib.error
 import urllib.request
+
+import yfinance as yf
 
 BCB_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{series}/dados/ultimos/{n}?formato=json"
 
@@ -67,6 +73,26 @@ def _ipca_acumulado_12m(registros: list[dict]) -> float | None:
 
 
 # ---------------------------------------------------------------------------
+# Commodities
+# ---------------------------------------------------------------------------
+
+def _fetch_commodity(symbol: str) -> tuple[float | None, float | None]:
+    """Retorna (preço atual, variação % no dia) para um contrato futuro via yfinance."""
+    try:
+        info = yf.Ticker(symbol).fast_info
+        price = _safe_float(info.last_price)
+        prev_close = _safe_float(info.previous_close)
+        if price is not None and prev_close and prev_close != 0.0:
+            change_pct = round((price - prev_close) / prev_close * 100, 4)
+        else:
+            change_pct = None
+        return price, change_pct
+    except Exception as exc:
+        print(f"Aviso: falha ao buscar commodity {symbol}: {exc}", file=sys.stderr)
+        return None, None
+
+
+# ---------------------------------------------------------------------------
 # Função principal
 # ---------------------------------------------------------------------------
 
@@ -74,6 +100,9 @@ def fetch_macro() -> dict:
     selic_data = _fetch_series(SELIC_SERIES, n=1)
     ipca_data = _fetch_series(IPCA_SERIES, n=12)
     usd_data = _fetch_series(USD_BRL_SERIES, n=1)
+
+    brent_price, brent_change_pct = _fetch_commodity("BZ=F")
+    wti_price, wti_change_pct = _fetch_commodity("CL=F")
 
     ipca_mensal = [
         {"date": r.get("data"), "value": _safe_float(r.get("valor"))}
@@ -92,6 +121,14 @@ def fetch_macro() -> dict:
 
         # Taxa de câmbio USD/BRL - comercial (compra)
         "usdBrl": _safe_float(usd_data[0].get("valor")) if usd_data else None,
+
+        # Brent Crude Oil (USD/barril)
+        "brentPrice": brent_price,
+        "brentChangePct": brent_change_pct,
+
+        # WTI Crude Oil (USD/barril)
+        "wtiPrice": wti_price,
+        "wtiChangePct": wti_change_pct,
     }
 
 

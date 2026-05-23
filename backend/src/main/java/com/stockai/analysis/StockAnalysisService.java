@@ -12,6 +12,7 @@ import dev.langchain4j.store.embedding.filter.MetadataFilterBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -19,6 +20,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,11 +30,16 @@ public class StockAnalysisService {
 
     private static final Logger log = LoggerFactory.getLogger(StockAnalysisService.class);
 
+    private static final String CACHE_PREFIX = "analysis:";
+
     private final EmbeddingModel embeddingModel;
     private final EmbeddingStore<TextSegment> embeddingStore;
     private final ChatModel chatModel;
     private final ObjectMapper objectMapper;
     private final StockEmbeddingService embeddingService;
+    private final ScoreHistoryService scoreHistoryService;
+    private final ScoreAlertService scoreAlertService;
+    private final RedisTemplate<String, String> redisTemplate;
 
     @Value("${python.script.fundamentals-path:scripts/fetch_fundamentals.py}")
     private String fundamentalsScriptPath;
@@ -40,29 +47,60 @@ public class StockAnalysisService {
     @Value("${python.script.macro-path:scripts/fetch_macro.py}")
     private String macroScriptPath;
 
+    @Value("${python.script.news-path:scripts/fetch_news.py}")
+    private String newsScriptPath;
+
     public StockAnalysisService(
             EmbeddingModel embeddingModel,
             EmbeddingStore<TextSegment> embeddingStore,
             ChatModel chatModel,
             ObjectMapper objectMapper,
-            StockEmbeddingService embeddingService) {
+            StockEmbeddingService embeddingService,
+            ScoreHistoryService scoreHistoryService,
+            ScoreAlertService scoreAlertService,
+            RedisTemplate<String, String> redisTemplate) {
         this.embeddingModel = embeddingModel;
         this.embeddingStore = embeddingStore;
         this.chatModel = chatModel;
         this.objectMapper = objectMapper;
         this.embeddingService = embeddingService;
+        this.scoreHistoryService = scoreHistoryService;
+        this.scoreAlertService = scoreAlertService;
+        this.redisTemplate = redisTemplate;
     }
 
     public StockAnalysis analyze(String ticker) throws Exception {
+        String cacheKey = CACHE_PREFIX + ticker;
+        String cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            log.debug("Cache HIT para {}", ticker);
+            return objectMapper.readValue(cached, StockAnalysis.class);
+        }
+
         StockFundamentals fundamentals = fetchFundamentals(ticker);
         MacroData macro = fetchMacro();
+        List<NewsItem> news = fetchNews(ticker);
         String context = retrieveContext(fundamentals);
-        String prompt = buildPrompt(fundamentals, macro, context);
+        String prompt = buildPrompt(fundamentals, macro, context, news);
         String rawResponse = chatModel.chat(prompt);
         log.debug("Resposta bruta do LLM para {}: {}", ticker, rawResponse);
         StockAnalysis analysis = parseAnalysis(ticker, sanitize(rawResponse));
         indexAnalysis(analysis, fundamentals);
+        scoreHistoryService.saveScore(analysis);
+        scoreAlertService.checkAndAlert(analysis);
+
+        try {
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(analysis), Duration.ofMinutes(30));
+        } catch (Exception e) {
+            log.warn("Falha ao salvar análise no cache Redis para {}: {}", ticker, e.getMessage());
+        }
+
         return analysis;
+    }
+
+    public StockAnalysis refreshAnalysis(String ticker) throws Exception {
+        redisTemplate.delete(CACHE_PREFIX + ticker);
+        return analyze(ticker);
     }
 
     // -------------------------------------------------------------------------
@@ -97,6 +135,25 @@ public class StockAnalysisService {
         } catch (Exception e) {
             log.warn("Falha ao buscar dados macroeconômicos: {}", e.getMessage());
             return null;
+        }
+    }
+
+    /** Retorna lista vazia se o script falhar — a análise continua sem notícias. */
+    private List<NewsItem> fetchNews(String ticker) {
+        try {
+            Process process = new ProcessBuilder("python", newsScriptPath, ticker).start();
+            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+            int exitCode = process.waitFor();
+
+            if (!stderr.isBlank()) log.warn("fetch_news.py [{}]: {}", ticker, stderr.strip());
+            if (exitCode != 0 || stdout.isBlank()) return List.of();
+
+            return objectMapper.readValue(stdout.strip(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, NewsItem.class));
+        } catch (Exception e) {
+            log.warn("Falha ao buscar notícias para {}: {}", ticker, e.getMessage());
+            return List.of();
         }
     }
 
@@ -135,8 +192,9 @@ public class StockAnalysisService {
     // Construção do prompt
     // -------------------------------------------------------------------------
 
-    private String buildPrompt(StockFundamentals f, MacroData macro, String context) {
+    private String buildPrompt(StockFundamentals f, MacroData macro, String context, List<NewsItem> news) {
         String macroSection = macro != null ? buildMacroText(macro) : "Dados macroeconômicos indisponíveis.";
+        String newsSection = buildNewsText(news);
         return """
                 Responda APENAS com JSON válido, sem markdown, sem ```json, sem texto antes ou depois. Baseie sua análise EXCLUSIVAMENTE nos dados fornecidos no contexto.
 
@@ -146,6 +204,9 @@ public class StockAnalysisService {
                 %s
 
                 CONTEXTO MACROECONÔMICO:
+                %s
+
+                NOTÍCIAS RECENTES (últimas 24h):
                 %s
 
                 CONTEXTO HISTÓRICO (RAG):
@@ -158,6 +219,7 @@ public class StockAnalysisService {
                 - Sentimento Institucional: beta, amplitude 52 semanas e volume médio
                 - Retorno ao Acionista: dividend yield, consistência do histórico de dividendos e FCL
                 - Gestão de Risco: Selic eleva custo de capital; dívida/patrimônio e exposição cambial
+                - Use as notícias recentes para calibrar especialmente as dimensões sentimentoInstitucional e regimeMomentum
 
                 Responda SOMENTE com JSON válido, sem texto adicional, sem markdown.
 
@@ -171,7 +233,7 @@ public class StockAnalysisService {
                   "scoreGeral": <média dos 6 scores>,
                   "resumo": "<síntese em 2 frases>"
                 }
-                """.formatted(buildFundamentalsText(f), macroSection, context);
+                """.formatted(buildFundamentalsText(f), macroSection, newsSection, context);
     }
 
     private String buildFundamentalsText(StockFundamentals f) {
@@ -221,8 +283,27 @@ public class StockAnalysisService {
     }
 
     private String buildMacroText(MacroData m) {
-        return "Selic: %s%% a.a. | IPCA 12m: %s%% | USD/BRL: %s"
-                .formatted(fmt(m.selicPct()), fmt(m.ipca12mPct()), fmt(m.usdBrl()));
+        return "Selic: %s%% a.a. | IPCA 12m: %s%% | USD/BRL: %s | Brent: USD %s (%s%%) | WTI: USD %s (%s%%)"
+                .formatted(
+                        fmt(m.selicPct()), fmt(m.ipca12mPct()), fmt(m.usdBrl()),
+                        fmt(m.brentPrice()), fmt(m.brentChangePct()),
+                        fmt(m.wtiPrice()), fmt(m.wtiChangePct()));
+    }
+
+    private String buildNewsText(List<NewsItem> news) {
+        if (news == null || news.isEmpty()) return "Sem notícias recentes disponíveis.";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < news.size(); i++) {
+            NewsItem item = news.get(i);
+            sb.append(i + 1).append(". ").append(item.title()).append("\n");
+            if (item.description() != null && !item.description().isBlank()) {
+                sb.append("   ").append(item.description()).append("\n");
+            }
+            if (item.publishedAt() != null && !item.publishedAt().isBlank()) {
+                sb.append("   Publicado: ").append(item.publishedAt()).append("\n");
+            }
+        }
+        return sb.toString().strip();
     }
 
     // -------------------------------------------------------------------------

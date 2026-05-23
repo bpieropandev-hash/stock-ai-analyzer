@@ -7,5 +7,9 @@ public record MacroData(
         BigDecimal selicPct,
         BigDecimal ipca12mPct,
         List<IpcaMensal> ipcaMensal,
-        BigDecimal usdBrl
+        BigDecimal usdBrl,
+        BigDecimal brentPrice,
+        BigDecimal brentChangePct,
+        BigDecimal wtiPrice,
+        BigDecimal wtiChangePct
 ) {}

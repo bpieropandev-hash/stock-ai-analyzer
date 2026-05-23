@@ -12,7 +12,8 @@
       "mcp__plugin_context7_context7__resolve-library-id",
       "mcp__plugin_context7_context7__query-docs",
       "PowerShell(Get-ChildItem *)",
-      "Bash(docker exec stock-ai-postgres *)"
+      "Bash(docker exec stock-ai-postgres *)",
+      "Bash(./mvnw clean *)"
     ]
   }
 }
