@@ -31,6 +31,9 @@ public class StockAnalysisService {
     private static final Logger log = LoggerFactory.getLogger(StockAnalysisService.class);
 
     private static final String CACHE_PREFIX = "analysis:";
+    private static final String DISCLAIMER =
+            "Esta análise é gerada por IA e não constitui recomendação de investimento. " +
+            "Consulte um assessor financeiro credenciado.";
 
     private final EmbeddingModel embeddingModel;
     private final EmbeddingStore<TextSegment> embeddingStore;
@@ -40,6 +43,8 @@ public class StockAnalysisService {
     private final ScoreHistoryService scoreHistoryService;
     private final ScoreAlertService scoreAlertService;
     private final RedisTemplate<String, String> redisTemplate;
+    private final SectorClassifier sectorClassifier;
+    private final SectorPromptConfig sectorPromptConfig;
 
     @Value("${python.script.fundamentals-path:scripts/fetch_fundamentals.py}")
     private String fundamentalsScriptPath;
@@ -53,6 +58,9 @@ public class StockAnalysisService {
     @Value("${python.script.sentiment-path:scripts/analyze_sentiment.py}")
     private String sentimentScriptPath;
 
+    @Value("${python.script.technical-indicators-path:scripts/fetch_technical_indicators.py}")
+    private String technicalScriptPath;
+
     @Value("${huggingface.token:}")
     private String huggingfaceToken;
 
@@ -64,7 +72,9 @@ public class StockAnalysisService {
             StockEmbeddingService embeddingService,
             ScoreHistoryService scoreHistoryService,
             ScoreAlertService scoreAlertService,
-            RedisTemplate<String, String> redisTemplate) {
+            RedisTemplate<String, String> redisTemplate,
+            SectorClassifier sectorClassifier,
+            SectorPromptConfig sectorPromptConfig) {
         this.embeddingModel = embeddingModel;
         this.embeddingStore = embeddingStore;
         this.chatModel = chatModel;
@@ -73,41 +83,67 @@ public class StockAnalysisService {
         this.scoreHistoryService = scoreHistoryService;
         this.scoreAlertService = scoreAlertService;
         this.redisTemplate = redisTemplate;
+        this.sectorClassifier = sectorClassifier;
+        this.sectorPromptConfig = sectorPromptConfig;
     }
 
-    public StockAnalysis analyze(String ticker) throws Exception {
+    public AnalysisResponse analyze(String ticker) throws Exception {
         String cacheKey = CACHE_PREFIX + ticker;
         String cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached != null) {
-            log.debug("Cache HIT para {}", ticker);
-            return objectMapper.readValue(cached, StockAnalysis.class);
+            try {
+                log.debug("Cache HIT para {}", ticker);
+                return objectMapper.readValue(cached, AnalysisResponse.class);
+            } catch (Exception e) {
+                // cache com formato antigo (StockAnalysis) — descarta e recomputa
+                log.debug("Cache stale para {} — recomputando", ticker);
+            }
         }
 
+        SectorType sector = sectorClassifier.classify(ticker);
         StockFundamentals fundamentals = fetchFundamentals(ticker);
         MacroData macro = fetchMacro();
         List<NewsItem> news = fetchNews(ticker);
         String context = retrieveContext(fundamentals);
         SentimentResult sentiment = fetchSentiment(news);
-        String prompt = buildPrompt(fundamentals, macro, context, sentiment);
+        TechnicalIndicators technical = fetchTechnicalIndicators(ticker);
+        String prompt = buildPrompt(fundamentals, macro, context, sentiment, technical, sector);
         String rawResponse = chatModel.chat(prompt);
         log.debug("Resposta bruta do LLM para {}: {}", ticker, rawResponse);
-        StockAnalysis analysis = parseAnalysis(ticker, sanitize(rawResponse));
+        String sanitized = sanitize(rawResponse);
+        StockAnalysis analysis = parseAnalysis(ticker, sanitized);
+        String simpleSummary = parseSimpleSummary(sanitized);
         indexAnalysis(analysis, fundamentals);
         scoreHistoryService.saveScore(analysis);
         scoreAlertService.checkAndAlert(analysis);
 
+        AnalysisResponse response = new AnalysisResponse(
+                analysis,
+                sector.name(),
+                simpleSummary,
+                deriveRecommendation(analysis.scoreGeral()),
+                DISCLAIMER
+        );
+
         try {
-            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(analysis), Duration.ofMinutes(30));
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(response), Duration.ofMinutes(30));
         } catch (Exception e) {
             log.warn("Falha ao salvar análise no cache Redis para {}: {}", ticker, e.getMessage());
         }
 
-        return analysis;
+        return response;
     }
 
-    public StockAnalysis refreshAnalysis(String ticker) throws Exception {
+    public AnalysisResponse refreshAnalysis(String ticker) throws Exception {
         redisTemplate.delete(CACHE_PREFIX + ticker);
         return analyze(ticker);
+    }
+
+    private String deriveRecommendation(double score) {
+        if (score > 7.5)  return "COMPRAR";
+        if (score >= 6.0) return "MANTER";
+        if (score >= 4.5) return "AGUARDAR";
+        return "EVITAR";
     }
 
     // -------------------------------------------------------------------------
@@ -201,6 +237,38 @@ public class StockAnalysisService {
         }
     }
 
+    /** Retorna null se o script falhar — a análise continua sem indicadores técnicos. */
+    private TechnicalIndicators fetchTechnicalIndicators(String ticker) {
+        try {
+            Process process = new ProcessBuilder("python", technicalScriptPath, ticker).start();
+            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+            process.waitFor();
+
+            if (!stderr.isBlank()) log.warn("fetch_technical_indicators.py [{}]: {}", ticker, stderr.strip());
+            if (stdout.isBlank()) return null;
+
+            JsonNode root = objectMapper.readTree(stdout.strip());
+            return new TechnicalIndicators(
+                    root.path("currentPrice").isNull() ? null : root.path("currentPrice").asDouble(),
+                    root.path("rsi").isNull() ? null : root.path("rsi").asDouble(),
+                    root.path("macdLine").isNull() ? null : root.path("macdLine").asDouble(),
+                    root.path("macdSignal").isNull() ? null : root.path("macdSignal").asDouble(),
+                    root.path("macdHistogram").isNull() ? null : root.path("macdHistogram").asDouble(),
+                    root.path("sma20").isNull() ? null : root.path("sma20").asDouble(),
+                    root.path("sma50").isNull() ? null : root.path("sma50").asDouble(),
+                    root.path("bollingerUpper").isNull() ? null : root.path("bollingerUpper").asDouble(),
+                    root.path("bollingerMiddle").isNull() ? null : root.path("bollingerMiddle").asDouble(),
+                    root.path("bollingerLower").isNull() ? null : root.path("bollingerLower").asDouble(),
+                    root.path("volumeRatio").isNull() ? null : root.path("volumeRatio").asDouble(),
+                    root.path("technicalSignal").asText(null)
+            );
+        } catch (Exception e) {
+            log.warn("Falha ao calcular indicadores técnicos para {}: {}", ticker, e.getMessage());
+            return null;
+        }
+    }
+
     // -------------------------------------------------------------------------
     // RAG — recuperação de contexto histórico
     // -------------------------------------------------------------------------
@@ -236,9 +304,12 @@ public class StockAnalysisService {
     // Construção do prompt
     // -------------------------------------------------------------------------
 
-    private String buildPrompt(StockFundamentals f, MacroData macro, String context, SentimentResult sentiment) {
+    private String buildPrompt(StockFundamentals f, MacroData macro, String context,
+                               SentimentResult sentiment, TechnicalIndicators technical, SectorType sector) {
         String macroSection = macro != null ? buildMacroText(macro) : "Dados macroeconômicos indisponíveis.";
+        String technicalSection = buildTechnicalText(technical);
         String sentimentSection = buildSentimentText(sentiment);
+        String sectorSection = sectorPromptConfig.getInstructions(sector);
         return """
                 Responda APENAS com JSON válido, sem markdown, sem ```json, sem texto antes ou depois. Baseie sua análise EXCLUSIVAMENTE nos dados fornecidos no contexto.
 
@@ -252,16 +323,22 @@ public class StockAnalysisService {
 
                 %s
 
+                %s
+
                 CONTEXTO HISTÓRICO (RAG):
+                %s
+
+                CONTEXTO SETORIAL (%s):
                 %s
 
                 INSTRUÇÕES DE ANÁLISE:
                 - Fundamentos: qualidade dos resultados, margens, ROE/ROA e crescimento
                 - Valuation: P/L e P/VPA vs setor; FCL como suporte ao preço justo
-                - Regime/Momentum: tendência trimestral de receita/lucro e impacto do câmbio USD/BRL
+                - Regime/Momentum: use technicalSignal como base objetiva, ajustando pelo contexto fundamentalista e câmbio USD/BRL
                 - Sentimento Institucional: use o score FinBERT como base objetiva, ajustando por beta e amplitude 52 semanas
                 - Retorno ao Acionista: dividend yield, consistência do histórico de dividendos e FCL
                 - Gestão de Risco: Selic eleva custo de capital; dívida/patrimônio e exposição cambial
+                - Aplique as particularidades do CONTEXTO SETORIAL ao calibrar cada dimensão
 
                 Responda SOMENTE com JSON válido, sem texto adicional, sem markdown.
 
@@ -273,9 +350,54 @@ public class StockAnalysisService {
                   "retornoAcionista": {"score": <0-10>, "explicacao": "<1 frase em português>"},
                   "gestaoRisco": {"score": <0-10>, "explicacao": "<1 frase em português>"},
                   "scoreGeral": <média dos 6 scores>,
-                  "resumo": "<síntese em 2 frases>"
+                  "resumo": "<síntese em 2 frases>",
+                  "simpleSummary": "<explique em 2 frases simples como se falasse com alguém que nunca investiu, sem jargões financeiros>"
                 }
-                """.formatted(buildFundamentalsText(f), macroSection, sentimentSection, context);
+                """.formatted(buildFundamentalsText(f), macroSection, technicalSection, sentimentSection,
+                              context, sector.name(), sectorSection);
+    }
+
+    private String buildTechnicalText(TechnicalIndicators t) {
+        if (t == null) return "INDICADORES TÉCNICOS:\nIndisponíveis.";
+
+        String rsiLabel = t.rsi() != null
+                ? (t.rsi() < 30 ? " (sobrevendido)" : t.rsi() > 70 ? " (sobrecomprado)" : "")
+                : "";
+        String macdDir = t.macdHistogram() != null
+                ? (t.macdHistogram() > 0 ? " ↑ bullish" : " ↓ bearish")
+                : "";
+
+        return """
+                INDICADORES TÉCNICOS:
+                RSI (14): %s%s | MACD Linha: %s | Signal: %s | Hist: %s%s
+                SMA20: %s | SMA50: %s | %s
+                Bollinger: Superior %s / Médio %s / Inferior %s
+                Volume Ratio (20d): %sx
+                Sinal Técnico: %s
+
+                Use technicalSignal como base objetiva para regimeMomentum, ajustando pelo contexto fundamentalista."""
+                .formatted(
+                        fmtD(t.rsi()), rsiLabel,
+                        fmtD(t.macdLine()), fmtD(t.macdSignal()), fmtD(t.macdHistogram()), macdDir,
+                        fmtD(t.sma20()), fmtD(t.sma50()), priceVsMA(t.currentPrice(), t.sma20(), t.sma50()),
+                        fmtD(t.bollingerUpper()), fmtD(t.bollingerMiddle()), fmtD(t.bollingerLower()),
+                        fmtD(t.volumeRatio()),
+                        t.technicalSignal() != null ? t.technicalSignal() : "N/D"
+                );
+    }
+
+    private String priceVsMA(Double price, Double sma20, Double sma50) {
+        if (price == null) return "Preço indisponível";
+        boolean aboveSma20 = sma20 != null && price > sma20;
+        boolean aboveSma50 = sma50 != null && price > sma50;
+        if (aboveSma20 && aboveSma50) return "Preço acima de SMA20 e SMA50";
+        if (aboveSma20)               return "Preço acima de SMA20, abaixo de SMA50";
+        if (aboveSma50)               return "Preço abaixo de SMA20, acima de SMA50";
+        return "Preço abaixo de SMA20 e SMA50";
+    }
+
+    private String fmtD(Double v) {
+        return v != null ? String.format("%.2f", v) : "N/D";
     }
 
     private String buildSentimentText(SentimentResult s) {
@@ -417,6 +539,14 @@ public class StockAnalysisService {
         } catch (Exception e) {
             log.error("Falha ao parsear resposta do LLM para {}: {}", ticker, e.getMessage());
             return fallbackAnalysis(ticker);
+        }
+    }
+
+    private String parseSimpleSummary(String json) {
+        try {
+            return objectMapper.readTree(json).path("simpleSummary").asText("Análise indisponível.");
+        } catch (Exception e) {
+            return "Análise indisponível.";
         }
     }
 

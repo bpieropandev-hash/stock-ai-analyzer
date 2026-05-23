@@ -38,6 +38,7 @@ python:
     macro-path: ${PYTHON_MACRO_PATH:scripts/fetch_macro.py}
     historical-fundamentals-path: ${PYTHON_HISTORICAL_PATH:scripts/fetch_historical_fundamentals.py}
     sentiment-path: ${PYTHON_SENTIMENT_PATH:scripts/analyze_sentiment.py}
+    technical-indicators-path: ${PYTHON_TECHNICAL_PATH:scripts/fetch_technical_indicators.py}
 
 huggingface:
   token: ${HUGGINGFACE_TOKEN:}

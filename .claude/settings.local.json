@@ -16,7 +16,9 @@
       "Bash(./mvnw clean *)",
       "Bash(Get-ChildItem -Recurse \"C:\\\\Users\\\\berna\\\\OneDrive\\\\Área de Trabalho\\\\Projetos\\\\stock-ai-analyzer\\\\backend\\\\src\" -Filter \"*.java\")",
       "Bash(docker exec stock-ai-redis *)",
-      "Bash(python scripts/fetch_fundamentals.py MGLU3)"
+      "Bash(python scripts/fetch_fundamentals.py MGLU3)",
+      "Bash(python scripts/fetch_technical_indicators.py PETR4)",
+      "Bash(python scripts/analyze_sentiment.py '[\"Petrobras reporta lucro recorde\", \"Risco político preocupa investidores\"]')"
     ]
   }
 }

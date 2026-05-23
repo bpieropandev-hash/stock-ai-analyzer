@@ -28,7 +28,7 @@ public class AnalysisController {
     }
 
     @GetMapping("/{ticker}/analysis")
-    public ResponseEntity<StockAnalysis> analyze(@PathVariable String ticker) {
+    public ResponseEntity<AnalysisResponse> analyze(@PathVariable String ticker) {
         try {
             return ResponseEntity.ok(analysisService.analyze(ticker.toUpperCase()));
         } catch (Exception e) {
@@ -38,7 +38,7 @@ public class AnalysisController {
     }
 
     @PostMapping("/{ticker}/analysis/refresh")
-    public ResponseEntity<StockAnalysis> refresh(@PathVariable String ticker) {
+    public ResponseEntity<AnalysisResponse> refresh(@PathVariable String ticker) {
         try {
             return ResponseEntity.ok(analysisService.refreshAnalysis(ticker.toUpperCase()));
         } catch (Exception e) {
