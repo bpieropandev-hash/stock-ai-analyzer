@@ -1,0 +1,25 @@
+# Secrets — nunca versionar
+.env
+*.env
+
+# Build
+backend/target/
+frontend/dist/
+frontend/.angular/
+
+# Dependências
+frontend/node_modules/
+
+# IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
