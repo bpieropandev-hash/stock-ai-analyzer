@@ -14,7 +14,9 @@
       "PowerShell(Get-ChildItem *)",
       "Bash(docker exec stock-ai-postgres *)",
       "Bash(./mvnw clean *)",
-      "Bash(Get-ChildItem -Recurse \"C:\\\\Users\\\\berna\\\\OneDrive\\\\Área de Trabalho\\\\Projetos\\\\stock-ai-analyzer\\\\backend\\\\src\" -Filter \"*.java\")"
+      "Bash(Get-ChildItem -Recurse \"C:\\\\Users\\\\berna\\\\OneDrive\\\\Área de Trabalho\\\\Projetos\\\\stock-ai-analyzer\\\\backend\\\\src\" -Filter \"*.java\")",
+      "Bash(docker exec stock-ai-redis *)",
+      "Bash(python scripts/fetch_fundamentals.py MGLU3)"
     ]
   }
 }

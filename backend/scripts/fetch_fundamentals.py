@@ -132,8 +132,10 @@ def fetch_fundamentals(ticker: str) -> dict:
         "earningsGrowth": _safe_float(info.get("earningsGrowth")),
 
         # Dividendos
-        # dividendYield retornado como decimal pelo yfinance (0.06 = 6%)
-        "dividendYield": _safe_float(info.get("dividendYield")),
+        # trailingAnnualDividendYield usa os pagamentos reais dos últimos 12 meses,
+        # ao contrário de dividendYield que é calculado sobre o preço atual e pode
+        # distorcer para cima quando a ação cai bruscamente.
+        "dividendYield": _safe_float(info.get("trailingAnnualDividendYield")),
         "dividendHistory": _dividend_history(stock),
 
         # Resultados trimestrais
