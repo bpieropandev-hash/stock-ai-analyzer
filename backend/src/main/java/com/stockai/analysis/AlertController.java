@@ -1,9 +1,7 @@
 package com.stockai.analysis;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -18,7 +16,12 @@ public class AlertController {
     }
 
     @GetMapping
-    public ResponseEntity<List<StockAlert>> getAlerts() {
-        return ResponseEntity.ok(alertService.getRecentAlerts());
+    public ResponseEntity<List<StockAlert>> getAlerts(@RequestParam(defaultValue = "7") int days) {
+        return ResponseEntity.ok(alertService.getRecentAlerts(days));
+    }
+
+    @GetMapping("/{ticker}")
+    public ResponseEntity<List<StockAlert>> getAlertsByTicker(@PathVariable String ticker) {
+        return ResponseEntity.ok(alertService.getAlertsByTicker(ticker.toUpperCase()));
     }
 }

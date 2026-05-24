@@ -8,7 +8,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
 public class ScoreAlertService {
@@ -16,11 +15,13 @@ public class ScoreAlertService {
     private static final Logger log = LoggerFactory.getLogger(ScoreAlertService.class);
     private static final double ALERT_THRESHOLD = 1.5;
 
-    private final List<StockAlert> alerts = new CopyOnWriteArrayList<>();
     private final ScoreHistoryService scoreHistoryService;
+    private final StockAlertRepository alertRepository;
 
-    public ScoreAlertService(ScoreHistoryService scoreHistoryService) {
+    public ScoreAlertService(ScoreHistoryService scoreHistoryService,
+                             StockAlertRepository alertRepository) {
         this.scoreHistoryService = scoreHistoryService;
+        this.alertRepository = alertRepository;
     }
 
     public void checkAndAlert(StockAnalysis analysis) {
@@ -36,17 +37,19 @@ public class ScoreAlertService {
                         double delta = analysis.scoreGeral() - previous.scoreGeral();
                         if (Math.abs(delta) > ALERT_THRESHOLD) {
                             String direction = delta > 0 ? "UP" : "DOWN";
-                            StockAlert alert = new StockAlert(
+                            double magnitude = Math.round(Math.abs(delta) * 100.0) / 100.0;
+                            StockAlertEntity entity = new StockAlertEntity(
                                     analysis.ticker(),
-                                    LocalDateTime.now(),
+                                    today,
                                     previous.scoreGeral(),
                                     analysis.scoreGeral(),
                                     direction,
-                                    Math.round(Math.abs(delta) * 100.0) / 100.0
+                                    magnitude,
+                                    LocalDateTime.now()
                             );
-                            alerts.add(alert);
-                            log.info("Alerta gerado — ticker={} direction={} magnitude={:.2f} before={} after={}",
-                                    analysis.ticker(), direction, Math.abs(delta),
+                            alertRepository.save(entity);
+                            log.info("Alerta gerado — ticker={} direction={} magnitude={} before={} after={}",
+                                    analysis.ticker(), direction, magnitude,
                                     previous.scoreGeral(), analysis.scoreGeral());
                         }
                     });
@@ -55,10 +58,29 @@ public class ScoreAlertService {
         }
     }
 
-    public List<StockAlert> getRecentAlerts() {
-        LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
-        return alerts.stream()
-                .filter(a -> a.date().isAfter(cutoff))
+    public List<StockAlert> getRecentAlerts(int days) {
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(days);
+        return alertRepository.findByCreatedAtAfter(cutoff)
+                .stream()
+                .map(this::toDto)
                 .toList();
+    }
+
+    public List<StockAlert> getAlertsByTicker(String ticker) {
+        return alertRepository.findByTicker(ticker)
+                .stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    private StockAlert toDto(StockAlertEntity e) {
+        return new StockAlert(
+                e.getTicker(),
+                e.getCreatedAt(),
+                e.getScoreBefore(),
+                e.getScoreAfter(),
+                e.getDirection(),
+                e.getMagnitude()
+        );
     }
 }
