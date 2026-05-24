@@ -17,7 +17,7 @@ public class StockFetchJob {
 
     private static final Logger log = LoggerFactory.getLogger(StockFetchJob.class);
 
-    static final List<String> TICKERS = List.of(
+    public static final List<String> TICKERS = List.of(
             "PETR4", "VALE3", "ITUB4", "BBDC4", "WEGE3",
             "MGLU3", "ABEV3", "B3SA3", "RENT3", "SUZB3"
     );
