@@ -21,7 +21,8 @@
       "Bash(python scripts/analyze_sentiment.py '[\"Petrobras reporta lucro recorde\", \"Risco político preocupa investidores\"]')",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\berna\\\\OneDrive\\\\Área de Trabalho\\\\Projetos\\\\stock-ai-analyzer\\\\backend\\\\src\\\\main\\\\java\" -Recurse -File)",
       "Bash(Sort-Object FullName)",
-      "Bash(Select-String \"README\")"
+      "Bash(Select-String \"README\")",
+      "Bash(./mvnw dependency:resolve -pl . -q)"
     ]
   }
 }

@@ -49,8 +49,12 @@ ollama:
   embedding:
     model: nomic-embed-text
     dimension: 768
-  chat:
-    model: qwen2.5:7b
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+
+groq:
+  api-key: ${GROQ_API_KEY:}
 
 embedding:
   store:

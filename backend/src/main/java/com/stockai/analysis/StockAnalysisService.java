@@ -109,6 +109,9 @@ public class StockAnalysisService {
         TechnicalIndicators technical = fetchTechnicalIndicators(ticker);
         String prompt = buildPrompt(fundamentals, macro, context, sentiment, technical, sector);
         String rawResponse = chatModel.chat(prompt);
+        String modelUsed = EmbeddingStoreConfig.ACTIVE_MODEL.get();
+        EmbeddingStoreConfig.ACTIVE_MODEL.remove();
+        log.info("Análise gerada via {} para {}", modelUsed, ticker);
         log.debug("Resposta bruta do LLM para {}: {}", ticker, rawResponse);
         String sanitized = sanitize(rawResponse);
         StockAnalysis analysis = parseAnalysis(ticker, sanitized);

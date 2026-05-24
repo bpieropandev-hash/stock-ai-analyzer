@@ -2,19 +2,22 @@ package com.stockai.analysis;
 
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.request.ResponseFormat;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.pgvector.DefaultMetadataStorageConfig;
 import dev.langchain4j.store.embedding.pgvector.MetadataStorageMode;
 import dev.langchain4j.store.embedding.pgvector.PgVectorEmbeddingStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 import java.time.Duration;
 import java.util.List;
@@ -23,6 +26,9 @@ import java.util.List;
 public class EmbeddingStoreConfig {
 
     private static final Logger log = LoggerFactory.getLogger(EmbeddingStoreConfig.class);
+
+    // ThreadLocal que o wrapper preenche; StockAnalysisService lê após cada chamada
+    static final ThreadLocal<String> ACTIVE_MODEL = ThreadLocal.withInitial(() -> "desconhecido");
 
     @Value("${embedding.store.table:stock_embeddings}")
     private String tableName;
@@ -37,8 +43,11 @@ public class EmbeddingStoreConfig {
     @Value("${ollama.embedding.dimension:768}")
     private int embeddingDimension;
 
-    @Value("${ollama.chat.model:llama3}")
-    private String chatModelName;
+    @Value("${gemini.api-key:}")
+    private String geminiApiKey;
+
+    @Value("${groq.api-key:}")
+    private String groqApiKey;
 
     @Value("${pgvector.host:localhost}")
     private String pgHost;
@@ -64,16 +73,50 @@ public class EmbeddingStoreConfig {
                 .build();
     }
 
-    @Bean
-    public ChatModel chatLanguageModel() {
-        return OllamaChatModel.builder()
-                .baseUrl(ollamaBaseUrl)
-                .modelName(chatModelName)
-                .responseFormat(ResponseFormat.JSON)
+    @Bean("geminiChatModel")
+    public ChatModel geminiChatModel() {
+        return OpenAiChatModel.builder()
+                .baseUrl("https://generativelanguage.googleapis.com/v1beta/openai/")
+                .apiKey(geminiApiKey)
+                .modelName("gemini-3.5-flash")
+                .responseFormat("json_object")
                 .temperature(0.2)
-                .numCtx(8192)
-                .timeout(Duration.ofMinutes(5))
+                .maxTokens(4096)
                 .build();
+    }
+
+    @Bean("groqChatModel")
+    public ChatModel groqChatModel() {
+        return OpenAiChatModel.builder()
+                .baseUrl("https://api.groq.com/openai/v1")
+                .apiKey(groqApiKey)
+                .modelName("qwen-qwen3-32b")
+                .responseFormat("json_object")
+                .temperature(0.2)
+                .maxTokens(4096)
+                .build();
+    }
+
+    @Bean
+    @Primary
+    public ChatModel chatModel(
+            @Qualifier("geminiChatModel") ChatModel gemini,
+            @Qualifier("groqChatModel") ChatModel groq) {
+        return new ChatModel() {
+            @Override
+            public ChatResponse chat(ChatRequest request) {
+                try {
+                    ChatResponse response = gemini.chat(request);
+                    ACTIVE_MODEL.set("Gemini");
+                    return response;
+                } catch (Exception e) {
+                    log.warn("Gemini indisponível ({}), ativando fallback Groq", e.getMessage());
+                    ChatResponse response = groq.chat(request);
+                    ACTIVE_MODEL.set("Groq (fallback)");
+                    return response;
+                }
+            }
+        };
     }
 
     @Bean
@@ -106,5 +149,4 @@ public class EmbeddingStoreConfig {
                         .build())
                 .build();
     }
-
 }
