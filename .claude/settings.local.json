@@ -22,7 +22,8 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\berna\\\\OneDrive\\\\Área de Trabalho\\\\Projetos\\\\stock-ai-analyzer\\\\backend\\\\src\\\\main\\\\java\" -Recurse -File)",
       "Bash(Sort-Object FullName)",
       "Bash(Select-String \"README\")",
-      "Bash(./mvnw dependency:resolve -pl . -q)"
+      "Bash(./mvnw dependency:resolve -pl . -q)",
+      "Bash(./mvnw dependency:resolve -q)"
     ]
   }
 }

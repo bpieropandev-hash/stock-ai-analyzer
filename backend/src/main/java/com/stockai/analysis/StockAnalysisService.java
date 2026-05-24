@@ -88,6 +88,8 @@ public class StockAnalysisService {
     }
 
     public AnalysisResponse analyze(String ticker) throws Exception {
+        // Normaliza para o formato B3 exigido pelo yfinance
+        ticker = ticker.toUpperCase().endsWith(".SA") ? ticker.toUpperCase() : ticker.toUpperCase() + ".SA";
         String cacheKey = CACHE_PREFIX + ticker;
         String cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached != null) {
@@ -138,7 +140,8 @@ public class StockAnalysisService {
     }
 
     public AnalysisResponse refreshAnalysis(String ticker) throws Exception {
-        redisTemplate.delete(CACHE_PREFIX + ticker);
+        String normalized = ticker.toUpperCase().endsWith(".SA") ? ticker.toUpperCase() : ticker.toUpperCase() + ".SA";
+        redisTemplate.delete(CACHE_PREFIX + normalized);
         return analyze(ticker);
     }
 
