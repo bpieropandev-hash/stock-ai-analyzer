@@ -1,5 +1,6 @@
 package com.stockai.analysis;
 
+import com.stockai.scheduler.PythonScriptRunner;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.chat.ChatModel;
@@ -20,10 +21,15 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,6 +38,10 @@ public class StockAnalysisService {
     private static final Logger log = LoggerFactory.getLogger(StockAnalysisService.class);
 
     private static final String CACHE_PREFIX = "analysis:";
+
+    // Incrementar sempre que o prompt mudar — scores de versões diferentes não são comparáveis
+    static final String PROMPT_VERSION = "v2.0";
+
     private static final String DISCLAIMER =
             "Esta análise é gerada por IA e não constitui recomendação de investimento. " +
             "Consulte um assessor financeiro credenciado.";
@@ -47,6 +57,12 @@ public class StockAnalysisService {
     private final RedisTemplate<String, String> redisTemplate;
     private final SectorClassifier sectorClassifier;
     private final SectorPromptConfig sectorPromptConfig;
+    private final SectorBenchmarks sectorBenchmarks;
+    private final AnalysisParser parser;
+    private final PythonScriptRunner scriptRunner;
+
+    // Single-flight: requisições simultâneas do mesmo ticker compartilham uma análise
+    private final ConcurrentHashMap<String, ReentrantLock> tickerLocks = new ConcurrentHashMap<>();
 
     @Value("${python.script.fundamentals-path:scripts/fetch_fundamentals.py}")
     private String fundamentalsScriptPath;
@@ -63,9 +79,6 @@ public class StockAnalysisService {
     @Value("${python.script.technical-indicators-path:scripts/fetch_technical_indicators.py}")
     private String technicalScriptPath;
 
-    @Value("${huggingface.token:}")
-    private String huggingfaceToken;
-
     public StockAnalysisService(
             EmbeddingModel embeddingModel,
             EmbeddingStore<TextSegment> embeddingStore,
@@ -77,7 +90,10 @@ public class StockAnalysisService {
             ScoreAlertService scoreAlertService,
             RedisTemplate<String, String> redisTemplate,
             SectorClassifier sectorClassifier,
-            SectorPromptConfig sectorPromptConfig) {
+            SectorPromptConfig sectorPromptConfig,
+            SectorBenchmarks sectorBenchmarks,
+            AnalysisParser parser,
+            PythonScriptRunner scriptRunner) {
         this.embeddingModel = embeddingModel;
         this.embeddingStore = embeddingStore;
         this.geminiModel = geminiModel;
@@ -89,40 +105,91 @@ public class StockAnalysisService {
         this.redisTemplate = redisTemplate;
         this.sectorClassifier = sectorClassifier;
         this.sectorPromptConfig = sectorPromptConfig;
+        this.sectorBenchmarks = sectorBenchmarks;
+        this.parser = parser;
+        this.scriptRunner = scriptRunner;
     }
 
     public AnalysisResponse analyze(String ticker) throws Exception {
         // Normaliza para o formato B3 exigido pelo yfinance
-        ticker = ticker.toUpperCase().endsWith(".SA") ? ticker.toUpperCase() : ticker.toUpperCase() + ".SA";
-        String cacheKey = CACHE_PREFIX + ticker;
+        String normalized = normalizeTicker(ticker);
+        String cacheKey = CACHE_PREFIX + normalized;
+
+        AnalysisResponse cached = readCache(cacheKey, normalized);
+        if (cached != null) return cached;
+
+        // Single-flight: o segundo request do mesmo ticker espera e reaproveita o cache
+        ReentrantLock lock = tickerLocks.computeIfAbsent(normalized, k -> new ReentrantLock());
+        lock.lock();
+        try {
+            cached = readCache(cacheKey, normalized);
+            if (cached != null) return cached;
+            return doAnalyze(normalized, cacheKey);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public AnalysisResponse refreshAnalysis(String ticker) throws Exception {
+        String normalized = normalizeTicker(ticker);
+        redisTemplate.delete(CACHE_PREFIX + normalized);
+        return analyze(normalized);
+    }
+
+    static String normalizeTicker(String ticker) {
+        String upper = ticker.toUpperCase();
+        return upper.endsWith(".SA") ? upper : upper + ".SA";
+    }
+
+    private AnalysisResponse readCache(String cacheKey, String ticker) {
         String cached = redisTemplate.opsForValue().get(cacheKey);
-        if (cached != null) {
-            try {
-                log.debug("Cache HIT para {}", ticker);
-                return objectMapper.readValue(cached, AnalysisResponse.class);
-            } catch (Exception e) {
-                // cache com formato antigo (StockAnalysis) — descarta e recomputa
-                log.debug("Cache stale para {} — recomputando", ticker);
-            }
+        if (cached == null) return null;
+        try {
+            log.debug("Cache HIT para {}", ticker);
+            return objectMapper.readValue(cached, AnalysisResponse.class);
+        } catch (Exception e) {
+            // cache com formato antigo — descarta e recomputa
+            log.debug("Cache stale para {} — recomputando", ticker);
+            return null;
+        }
+    }
+
+    private AnalysisResponse doAnalyze(String ticker, String cacheKey) throws Exception {
+        // Fase 1 — coletas independentes em paralelo (virtual threads)
+        StockFundamentals fundamentals;
+        MacroData macro;
+        List<NewsItem> news;
+        TechnicalIndicators technical;
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            Future<StockFundamentals> fundamentalsF = executor.submit(() -> fetchFundamentals(ticker));
+            Future<MacroData> macroF = executor.submit(this::fetchMacro);
+            Future<List<NewsItem>> newsF = executor.submit(() -> fetchNews(ticker));
+            Future<TechnicalIndicators> technicalF = executor.submit(() -> fetchTechnicalIndicators(ticker));
+
+            fundamentals = fundamentalsF.get();   // obrigatório — propaga falha
+            macro = safeGet(macroF, null);
+            news = safeGet(newsF, List.of());
+            technical = safeGet(technicalF, null);
         }
 
-        StockFundamentals fundamentals = fetchFundamentals(ticker);
+        // Fase 2 — dependem da fase 1
         SectorType sector = sectorClassifier.classify(ticker, fundamentals.sector());
-        MacroData macro = fetchMacro();
-        List<NewsItem> news = fetchNews(ticker);
-        String context = retrieveContext(fundamentals);
         SentimentResult sentiment = fetchSentiment(news);
-        TechnicalIndicators technical = fetchTechnicalIndicators(ticker);
+        String context = retrieveContext(fundamentals);
+
         String prompt = buildPrompt(fundamentals, macro, context, sentiment, technical, sector);
 
-        LLMResult llmResult;
+        AnalysisParser.ParsedAnalysis parsed;
+        String modelUsed;
         try {
-            llmResult = callWithParsing(ticker, prompt, geminiModel);
+            parsed = parser.parse(ticker, geminiModel.chat(prompt));
+            modelUsed = "gemini-2.5-flash";
             log.info("Análise gerada via Gemini para {}", ticker);
         } catch (Exception geminiEx) {
             log.warn("Gemini falhou para {} ({}), tentando Groq...", ticker, geminiEx.getMessage());
             try {
-                llmResult = callWithParsing(ticker, prompt, groqModel);
+                parsed = parser.parse(ticker, groqModel.chat(prompt));
+                modelUsed = "groq-qwen3-32b";
                 log.info("Análise gerada via Groq (fallback) para {}", ticker);
             } catch (Exception groqEx) {
                 log.error("Groq também falhou para {}: {}", ticker, groqEx.getMessage());
@@ -130,18 +197,19 @@ public class StockAnalysisService {
             }
         }
 
-        StockAnalysis analysis = llmResult.analysis();
-        String simpleSummary = llmResult.simpleSummary();
+        StockAnalysis analysis = parsed.analysis();
         indexAnalysis(analysis, fundamentals);
-        scoreHistoryService.saveScore(analysis);
+        scoreHistoryService.saveScore(analysis, modelUsed, PROMPT_VERSION);
         scoreAlertService.checkAndAlert(analysis);
 
         AnalysisResponse response = new AnalysisResponse(
                 analysis,
                 sector.name(),
-                simpleSummary,
-                deriveRecommendation(analysis.scoreGeral()),
-                DISCLAIMER
+                parsed.simpleSummary(),
+                parser.deriveRecommendation(analysis.scoreGeral()),
+                DISCLAIMER,
+                modelUsed,
+                PROMPT_VERSION
         );
 
         try {
@@ -153,17 +221,13 @@ public class StockAnalysisService {
         return response;
     }
 
-    public AnalysisResponse refreshAnalysis(String ticker) throws Exception {
-        String normalized = ticker.toUpperCase().endsWith(".SA") ? ticker.toUpperCase() : ticker.toUpperCase() + ".SA";
-        redisTemplate.delete(CACHE_PREFIX + normalized);
-        return analyze(ticker);
-    }
-
-    private String deriveRecommendation(double score) {
-        if (score > 7.5)  return "COMPRAR";
-        if (score >= 6.0) return "MANTER";
-        if (score >= 4.5) return "AGUARDAR";
-        return "EVITAR";
+    private <T> T safeGet(Future<T> future, T fallback) {
+        try {
+            return future.get();
+        } catch (Exception e) {
+            log.warn("Coleta opcional falhou: {}", e.getMessage());
+            return fallback;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -171,30 +235,21 @@ public class StockAnalysisService {
     // -------------------------------------------------------------------------
 
     private StockFundamentals fetchFundamentals(String ticker) throws Exception {
-        Process process = new ProcessBuilder("python", fundamentalsScriptPath, ticker).start();
-        String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-        int exitCode = process.waitFor();
-
-        if (!stderr.isBlank()) log.warn("fetch_fundamentals.py [{}]: {}", ticker, stderr.strip());
-        if (exitCode != 0) throw new IllegalStateException(
-                "Script de fundamentals encerrou com código %d para %s".formatted(exitCode, ticker));
-
-        return objectMapper.readValue(stdout.strip(), StockFundamentals.class);
+        PythonScriptRunner.ScriptResult result =
+                scriptRunner.run(fundamentalsScriptPath, Duration.ofSeconds(60), ticker);
+        if (result.failed()) {
+            throw new IllegalStateException(
+                    "Script de fundamentals encerrou com código %d para %s".formatted(result.exitCode(), ticker));
+        }
+        return objectMapper.readValue(result.stdout(), StockFundamentals.class);
     }
 
     /** Retorna null se o script falhar — a análise continua sem dados macro. */
     private MacroData fetchMacro() {
         try {
-            Process process = new ProcessBuilder("python", macroScriptPath).start();
-            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            int exitCode = process.waitFor();
-
-            if (!stderr.isBlank()) log.warn("fetch_macro.py: {}", stderr.strip());
-            if (exitCode != 0 || stdout.isBlank()) return null;
-
-            return objectMapper.readValue(stdout.strip(), MacroData.class);
+            PythonScriptRunner.ScriptResult result = scriptRunner.run(macroScriptPath, Duration.ofSeconds(45));
+            if (result.failed()) return null;
+            return objectMapper.readValue(result.stdout(), MacroData.class);
         } catch (Exception e) {
             log.warn("Falha ao buscar dados macroeconômicos: {}", e.getMessage());
             return null;
@@ -204,15 +259,10 @@ public class StockAnalysisService {
     /** Retorna lista vazia se o script falhar — a análise continua sem notícias. */
     private List<NewsItem> fetchNews(String ticker) {
         try {
-            Process process = new ProcessBuilder("python", newsScriptPath, ticker).start();
-            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            int exitCode = process.waitFor();
-
-            if (!stderr.isBlank()) log.warn("fetch_news.py [{}]: {}", ticker, stderr.strip());
-            if (exitCode != 0 || stdout.isBlank()) return List.of();
-
-            return objectMapper.readValue(stdout.strip(),
+            PythonScriptRunner.ScriptResult result =
+                    scriptRunner.run(newsScriptPath, Duration.ofSeconds(30), ticker);
+            if (result.failed()) return List.of();
+            return objectMapper.readValue(result.stdout(),
                     objectMapper.getTypeFactory().constructCollectionType(List.class, NewsItem.class));
         } catch (Exception e) {
             log.warn("Falha ao buscar notícias para {}: {}", ticker, e.getMessage());
@@ -232,21 +282,13 @@ public class StockAnalysisService {
                     .collect(Collectors.toList());
             if (titles.isEmpty()) return new SentimentResult(5.0, 0, 0, 0, 0.0);
 
+            // JSON via stdin para evitar corrupção de aspas no Windows ao usar argv
             String titlesJson = objectMapper.writeValueAsString(titles);
-            ProcessBuilder pb = new ProcessBuilder("python", sentimentScriptPath);
-            pb.environment().put("HUGGINGFACE_TOKEN", huggingfaceToken);
-            Process process = pb.start();
-            // Envia JSON via stdin para evitar corrupção de aspas no Windows ao usar argv
-            process.getOutputStream().write(titlesJson.getBytes(StandardCharsets.UTF_8));
-            process.getOutputStream().close();
-            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            process.waitFor();
+            PythonScriptRunner.ScriptResult result =
+                    scriptRunner.run(sentimentScriptPath, Duration.ofSeconds(30), titlesJson, Map.of());
+            if (result.stdout().isBlank()) return new SentimentResult(5.0, 0, 0, news.size(), 0.0);
 
-            if (!stderr.isBlank()) log.warn("analyze_sentiment.py: {}", stderr.strip());
-            if (stdout.isBlank()) return new SentimentResult(5.0, 0, 0, news.size(), 0.0);
-
-            JsonNode root = objectMapper.readTree(stdout.strip());
+            JsonNode root = objectMapper.readTree(result.stdout());
             return new SentimentResult(
                     root.path("sentimentScore").asDouble(5.0),
                     root.path("distribution").path("positive").asInt(0),
@@ -255,7 +297,7 @@ public class StockAnalysisService {
                     root.path("confidence").asDouble(0.0)
             );
         } catch (Exception e) {
-            log.warn("Falha ao calcular sentimento FinBERT: {}", e.getMessage());
+            log.warn("Falha ao calcular sentimento lexical: {}", e.getMessage());
             return new SentimentResult(5.0, 0, 0, 0, 0.0);
         }
     }
@@ -263,15 +305,11 @@ public class StockAnalysisService {
     /** Retorna null se o script falhar — a análise continua sem indicadores técnicos. */
     private TechnicalIndicators fetchTechnicalIndicators(String ticker) {
         try {
-            Process process = new ProcessBuilder("python", technicalScriptPath, ticker).start();
-            String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            process.waitFor();
+            PythonScriptRunner.ScriptResult result =
+                    scriptRunner.run(technicalScriptPath, Duration.ofSeconds(60), ticker);
+            if (result.stdout().isBlank()) return null;
 
-            if (!stderr.isBlank()) log.warn("fetch_technical_indicators.py [{}]: {}", ticker, stderr.strip());
-            if (stdout.isBlank()) return null;
-
-            JsonNode root = objectMapper.readTree(stdout.strip());
+            JsonNode root = objectMapper.readTree(result.stdout());
             return new TechnicalIndicators(
                     root.path("currentPrice").isNull() ? null : root.path("currentPrice").asDouble(),
                     root.path("rsi").isNull() ? null : root.path("rsi").asDouble(),
@@ -302,14 +340,18 @@ public class StockAnalysisService {
                     .embed(TextSegment.from(buildFundamentalsText(fundamentals)))
                     .content();
 
-            Filter tickerFilter = MetadataFilterBuilder.metadataKey("ticker")
-                    .isEqualTo(fundamentals.ticker());
+            // Apenas fundamentos históricos — recuperar análises anteriores criaria
+            // feedback loop: o LLM ancoraria no próprio score passado
+            Filter filter = MetadataFilterBuilder.metadataKey("ticker")
+                    .isEqualTo(fundamentals.ticker())
+                    .and(MetadataFilterBuilder.metadataKey("type")
+                            .isEqualTo("historical_fundamentals"));
 
             List<EmbeddingMatch<TextSegment>> matches = embeddingStore.search(
                     EmbeddingSearchRequest.builder()
                             .queryEmbedding(queryEmbedding)
                             .maxResults(3)
-                            .filter(tickerFilter)
+                            .filter(filter)
                             .build()
             ).matches();
 
@@ -333,10 +375,18 @@ public class StockAnalysisService {
         String technicalSection = buildTechnicalText(technical);
         String sentimentSection = buildSentimentText(sentiment);
         String sectorSection = sectorPromptConfig.getInstructions(sector);
+        String benchmarkSection = sectorBenchmarks.describe(sector);
+
+        LocalDate today = LocalDate.now();
+        // Eleições gerais brasileiras a cada 4 anos a partir de 2026
+        boolean electionYear = (today.getYear() - 2026) % 4 == 0;
+
         return """
                 Responda APENAS com JSON válido, sem markdown, sem ```json, sem texto antes ou depois. Baseie sua análise EXCLUSIVAMENTE nos dados fornecidos no contexto.
 
                 Você é um analista de investimentos especializado em ações da B3.
+
+                DATA DA ANÁLISE: %s%s
 
                 DADOS FUNDAMENTALISTAS:
                 %s
@@ -348,42 +398,47 @@ public class StockAnalysisService {
 
                 %s
 
-                CONTEXTO HISTÓRICO (RAG):
+                FUNDAMENTOS HISTÓRICOS (trimestres anteriores):
                 %s
 
                 CONTEXTO SETORIAL (%s):
                 %s
 
-                INSTRUÇÕES DE ANÁLISE:
-                - Fundamentos: qualidade dos resultados, margens, ROE/ROA e crescimento
-                - Valuation: P/L e P/VPA vs setor; FCL como suporte ao preço justo
-                - Regime/Momentum: use technicalSignal como base objetiva, ajustando pelo contexto fundamentalista e câmbio USD/BRL. O indicador técnico é um dos 6 fatores, não deve puxar o score abaixo de 4.0 sozinho. Mesmo com momentum ruim, se os fundamentos forem fortes, regimeMomentum não deve ser menor que 3.5.
-                - Sentimento Institucional: use o score FinBERT como base objetiva, ajustando por beta e amplitude 52 semanas
-                - Retorno ao Acionista: dividend yield, consistência do histórico de dividendos e FCL. Se o dividendYield for 0 mas o histórico de pagamentos mostrar dividendos reais, use o histórico para calibrar retornoAcionista — dividend yield zero nos dados pode ser erro de coleta, não realidade.
-                - Gestão de Risco: Selic eleva custo de capital; dívida/patrimônio e exposição cambial. A Selic alta é um risco macroeconômico que afeta TODAS as empresas brasileiras — penalize gestaoRisco pela Selic apenas quando a empresa for particularmente vulnerável (varejo de crédito, alta alavancagem). Para empresas defensivas (energia, utilities, exportadoras), a Selic deve reduzir gestaoRisco em no máximo 1 ponto.
-                - Aplique as particularidades do CONTEXTO SETORIAL ao calibrar cada dimensão
+                BENCHMARKS DO SETOR:
+                %s
 
-                CALIBRAÇÃO DOS SCORES:
-                - Score geral acima de 7.0 deve ser reservado para empresas realmente boas, com múltiplas dimensões fortes.
-                - Score abaixo de 3.0 deve ser reservado para empresas com problemas graves e estruturais.
-                - A maioria das ações sólidas da B3 deve ficar entre 5.5 e 7.5.
-                - Evite deflacionar sistematicamente scores por fatores macroeconômicos que afetam o mercado todo.
+                RUBRICA DE PONTUAÇÃO (use estas âncoras, não impressões gerais):
+                - Fundamentos — 8-10: ROE acima da faixa setorial, margens estáveis ou crescentes, lucro crescente nos trimestres; 5-7: rentabilidade dentro da faixa setorial, resultados estáveis; 2-4: margens em queda ou lucro irregular; 0-1: prejuízo recorrente.
+                - Valuation — 8-10: múltiplos claramente abaixo da faixa setorial com FCL positivo; 5-7: múltiplos dentro da faixa; 2-4: múltiplos acima da faixa sem crescimento que justifique; 0-1: múltiplos extremos ou P/L negativo sem perspectiva. Use P/VPA quando o P/L estiver distorcido por resultado negativo.
+                - Regime/Momentum — use technicalSignal como base: STRONG_BUY≈8, BUY≈6.5, NEUTRAL≈5, SELL≈3.5, STRONG_SELL≈2; ajuste ±1 pelo contexto fundamentalista. Momentum ruim com fundamentos fortes não deve ficar abaixo de 3.5.
+                - Sentimento Institucional — use o score lexical como base, ajustando por beta e amplitude 52 semanas. Com poucas notícias ou confiança baixa, mantenha próximo de 5 (neutro) — não invente sinal.
+                - Retorno ao Acionista — 8-10: yield acima da faixa setorial com histórico consistente e FCL que o sustenta; 5-7: yield dentro da faixa; 0-4: sem dividendos e sem recompras. Se dividendYield = 0 mas o histórico mostra pagamentos reais, use o histórico — yield zero pode ser falha de coleta.
+                - Gestão de Risco — 8-10: caixa líquido ou dívida/patrimônio baixo para o setor, exposição cambial administrada; 5-7: alavancagem típica do setor; 0-4: alavancagem alta E vulnerabilidade direta à Selic (varejo de crédito, imobiliário alavancado). A Selic afeta todas as empresas — penalize além de 1 ponto apenas as particularmente vulneráveis.
 
-                Responda SOMENTE com JSON válido, sem texto adicional, sem markdown.
+                CALIBRAÇÃO:
+                - Score acima de 7.0: empresas com múltiplas dimensões fortes segundo a rubrica.
+                - Score abaixo de 3.0: problemas graves e estruturais.
+                - Use a escala inteira — empresas diferentes devem receber scores claramente diferentes.
+                - Não deflacione scores por fatores macro que afetam o mercado inteiro.
+
+                Responda SOMENTE com JSON válido. O campo "analise" vem PRIMEIRO: raciocine brevemente sobre os dados antes de pontuar.
 
                 {
-                  "fundamentos": {"score": <0-10>, "explicacao": "<1 frase em português>"},
-                  "valuation": {"score": <0-10>, "explicacao": "<1 frase em português>"},
-                  "regimeMomentum": {"score": <0-10>, "explicacao": "<1 frase em português>"},
-                  "sentimentoInstitucional": {"score": <0-10>, "explicacao": "<1 frase em português>"},
-                  "retornoAcionista": {"score": <0-10>, "explicacao": "<1 frase em português>"},
-                  "gestaoRisco": {"score": <0-10>, "explicacao": "<1 frase em português>"},
-                  "scoreGeral": <média dos 6 scores>,
+                  "analise": "<raciocínio em 3-4 frases: pontos fortes, pontos fracos e o que pesa em cada dimensão>",
+                  "fundamentos": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
+                  "valuation": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
+                  "regimeMomentum": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
+                  "sentimentoInstitucional": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
+                  "retornoAcionista": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
+                  "gestaoRisco": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
                   "resumo": "<síntese em 2 frases>",
                   "simpleSummary": "<explique em 2 frases simples como se falasse com alguém que nunca investiu, sem jargões financeiros>"
                 }
-                """.formatted(buildFundamentalsText(f), macroSection, technicalSection, sentimentSection,
-                              context, sector.name(), sectorSection);
+                """.formatted(
+                        today,
+                        electionYear ? " (ano de eleições gerais no Brasil — considere risco político onde o contexto setorial indicar)" : "",
+                        buildFundamentalsText(f), macroSection, technicalSection, sentimentSection,
+                        context, sector.name(), sectorSection, benchmarkSection);
     }
 
     private String buildTechnicalText(TechnicalIndicators t) {
@@ -402,9 +457,7 @@ public class StockAnalysisService {
                 SMA20: %s | SMA50: %s | %s
                 Bollinger: Superior %s / Médio %s / Inferior %s
                 Volume Ratio (20d): %sx
-                Sinal Técnico: %s
-
-                Use technicalSignal como base objetiva para regimeMomentum, ajustando pelo contexto fundamentalista."""
+                Sinal Técnico: %s"""
                 .formatted(
                         fmtD(t.rsi()), rsiLabel,
                         fmtD(t.macdLine()), fmtD(t.macdSignal()), fmtD(t.macdHistogram()), macdDir,
@@ -430,13 +483,10 @@ public class StockAnalysisService {
     }
 
     private String buildSentimentText(SentimentResult s) {
+        // Honestidade com o modelo: é análise lexical de manchetes, não um classificador treinado
         return """
-                ANÁLISE DE SENTIMENTO DAS NOTÍCIAS (FinBERT):
-                Score: %.2f/10
-                Distribuição: %d positivas, %d negativas, %d neutras
-                Confiança média: %.2f
-
-                Use este score como base objetiva para sentimentoInstitucional, ajustando pelo contexto macro e risco político."""
+                SENTIMENTO DAS MANCHETES (análise lexical de palavras-chave — sinal de confiança limitada):
+                Score: %.2f/10 | Distribuição: %d positivas, %d negativas, %d neutras | Confiança média: %.2f"""
                 .formatted(s.score(), s.positiveCount(), s.negativeCount(), s.neutralCount(), s.confidence());
     }
 
@@ -468,7 +518,7 @@ public class StockAnalysisService {
           .append(" | Receita Total: ").append(fmtBrl(f.totalRevenue())).append("\n")
           .append("FCO: ").append(fmtBrl(f.operatingCashflow()))
           .append(" | FCL: ").append(fmtBrl(f.freeCashflow()))
-          .append(" | Dívida/Patrimônio: ").append(fmt(f.debtToEquity())).append("\n");
+          .append(" | Dívida/Patrimônio: ").append(fmt(f.debtToEquity())).append("x").append("\n");
 
         sb.append("\nDIVIDENDOS\n")
           .append("Dividend Yield: ").append(fmtPct(f.dividendYield())).append("%")
@@ -487,11 +537,19 @@ public class StockAnalysisService {
     }
 
     private String buildMacroText(MacroData m) {
-        return "Selic: %s%% a.a. | IPCA 12m: %s%% | USD/BRL: %s | Brent: USD %s (%s%%) | WTI: USD %s (%s%%)"
+        String corrente = "Selic: %s%% a.a. | IPCA 12m: %s%% | USD/BRL: %s | Brent: USD %s (%s%%) | WTI: USD %s (%s%%)"
                 .formatted(
                         fmt(m.selicPct()), fmt(m.ipca12mPct()), fmt(m.usdBrl()),
                         fmt(m.brentPrice()), fmt(m.brentChangePct()),
                         fmt(m.wtiPrice()), fmt(m.wtiChangePct()));
+
+        String focus = "Expectativas Focus (medianas) — Selic fim do ano: %s%% | Selic ano seguinte: %s%% | IPCA ano: %s%% | IPCA ano seguinte: %s%%"
+                .formatted(
+                        fmt(m.focusSelicCurrentYear()), fmt(m.focusSelicNextYear()),
+                        fmt(m.focusIpcaCurrentYear()), fmt(m.focusIpcaNextYear()));
+
+        return corrente + "\n" + focus +
+                "\nUse as expectativas Focus para avaliar a trajetória dos juros — corte esperado de Selic favorece setores sensíveis a juros.";
     }
 
     // -------------------------------------------------------------------------
@@ -535,50 +593,6 @@ public class StockAnalysisService {
     private String fmtPct(BigDecimal v) {
         if (v == null) return "N/D";
         return v.multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP).toPlainString();
-    }
-
-    // -------------------------------------------------------------------------
-    // Parse da resposta do LLM
-    // -------------------------------------------------------------------------
-
-    private record LLMResult(StockAnalysis analysis, String simpleSummary) {}
-
-    /** Remove blocos markdown que alguns modelos inserem ao redor do JSON. */
-    private String sanitize(String raw) {
-        String s = raw.strip();
-        if (s.startsWith("```")) {
-            s = s.replaceFirst("```[a-z]*\\n?", "").replaceFirst("(?s)```\\s*$", "").strip();
-        }
-        return s;
-    }
-
-    /** Chama o modelo, parseia o JSON e lança exceção em caso de falha — sem score 0.0 silencioso. */
-    private LLMResult callWithParsing(String ticker, String prompt, ChatModel model) throws Exception {
-        String raw = model.chat(prompt);
-        String sanitized = sanitize(raw);
-        log.debug("Resposta bruta do LLM para {}: {}", ticker, raw);
-        JsonNode root = objectMapper.readTree(sanitized);
-        StockAnalysis analysis = new StockAnalysis(
-                ticker,
-                LocalDate.now(),
-                parseDimension(root.get("fundamentos")),
-                parseDimension(root.get("valuation")),
-                parseDimension(root.get("regimeMomentum")),
-                parseDimension(root.get("sentimentoInstitucional")),
-                parseDimension(root.get("retornoAcionista")),
-                parseDimension(root.get("gestaoRisco")),
-                root.path("scoreGeral").asDouble(0.0),
-                root.path("resumo").asText("N/D")
-        );
-        String simpleSummary = root.path("simpleSummary").asText("Análise indisponível.");
-        return new LLMResult(analysis, simpleSummary);
-    }
-
-    private DimensionScore parseDimension(JsonNode node) {
-        if (node == null || node.isNull()) return new DimensionScore(0.0, "N/D");
-        return new DimensionScore(
-                node.path("score").asDouble(0.0),
-                node.path("explicacao").asText("N/D"));
     }
 
     private void indexAnalysis(StockAnalysis analysis, StockFundamentals fundamentals) {

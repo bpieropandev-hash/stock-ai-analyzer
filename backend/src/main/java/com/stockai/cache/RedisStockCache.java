@@ -7,8 +7,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
+
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -38,8 +42,13 @@ public class RedisStockCache {
     }
 
     public List<StockQuote> findAll() {
-        Set<String> keys = redisTemplate.keys(KEY_PREFIX + "*");
-        if (keys == null || keys.isEmpty()) {
+        // SCAN em vez de KEYS — KEYS é O(N) e bloqueia o Redis inteiro
+        Set<String> keys = new HashSet<>();
+        ScanOptions options = ScanOptions.scanOptions().match(KEY_PREFIX + "*").count(100).build();
+        try (Cursor<String> cursor = redisTemplate.scan(options)) {
+            cursor.forEachRemaining(keys::add);
+        }
+        if (keys.isEmpty()) {
             return List.of();
         }
 

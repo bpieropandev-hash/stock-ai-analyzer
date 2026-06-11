@@ -12,9 +12,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |---|---|
 | Backend | Spring Boot 4, Java 26, Maven |
 | Frontend | Angular 21, TypeScript |
-| Banco de dados | PostgreSQL + pgvector (embeddings), Redis (cache) |
-| Fonte de dados | yfinance (Python) para cotações e fundamentos B3, finbr como fallback, BCB API aberta para dados macroeconômicos (Selic, IPCA, CDI) |
-| IA | Anthropic Claude API + LangChain4j (RAG e embeddings) |
+| Banco de dados | PostgreSQL (JPA: alertas, score history, portfolio) + pgvector (embeddings), Redis (cache) |
+| Fonte de dados | yfinance (Python) para cotações e fundamentos B3; APIs abertas do BCB para macro (Selic, IPCA, USD/BRL) e expectativas Focus |
+| IA | Gemini 2.5 Flash (primário) + Groq qwen3-32b (fallback) via LangChain4j, temperature 0; embeddings nomic-embed-text via Ollama local |
 
 ## Comandos
 
@@ -37,10 +37,11 @@ npm run build      # build de produção
 ## Arquitetura
 
 ### Fluxo principal
-1. **Job agendado** (Spring `@Scheduled`) invoca `scripts/fetch_stock.py` via `ProcessBuilder`. O script Python busca cotações e fundamentos B3 usando yfinance (sufixo `.SA`), retorna JSON no stdout. O backend lê o JSON e salva cada cotação no Redis como cache de curto prazo.
-2. **WebSocket** (Spring WebSocket / STOMP) empurra atualizações de cotação para o frontend em tempo real.
-3. **Pipeline de IA** analisa os dados de cada ação usando a Claude API via LangChain4j, gerando um score explicado por dimensão.
-4. **pgvector** armazena embeddings para RAG — contexto histórico e fundamentalista é recuperado antes de cada análise.
+1. **Job agendado** (Spring `@Scheduled`, a cada 60s) invoca `scripts/fetch_stock.py` via `PythonScriptRunner` (timeout + leitura concorrente de streams). O script busca cotações B3 via yfinance (sufixo `.SA`) e retorna JSON no stdout; cada cotação vai para o Redis com TTL curto. O frontend consome via polling REST — **não há WebSocket**.
+2. **Pipeline de IA** (`StockAnalysisService`): coleta fundamentos, macro, notícias e indicadores técnicos **em paralelo** (virtual threads), recupera contexto RAG (apenas `historical_fundamentals` — análises passadas são excluídas para evitar feedback loop), monta o prompt com rubrica de pontuação e benchmarks setoriais, chama Gemini com fallback Groq.
+3. **Validação**: `AnalysisParser` clampa scores em 0–10, rejeita dimensões ausentes e calcula `scoreGeral` em Java (a aritmética do LLM é descartada). Cada análise registra `modelUsed` e `promptVersion` (constante `StockAnalysisService.PROMPT_VERSION` — incrementar a cada mudança de prompt).
+4. **Persistência**: score history em tabela JPA (`score_history`), alertas em PostgreSQL (Δscore > 1.5), embeddings no pgvector. `BacktestService` cruza scores com retornos realizados 30/90 dias (`GET /api/stocks/{ticker}/backtest`).
+5. **Single-flight**: requisições simultâneas do mesmo ticker compartilham uma análise (lock por ticker); resultado cacheado no Redis por 30 min.
 
 ### Score de investimento
 O score é composto por 6 dimensões independentes, cada uma com peso e explicação em linguagem natural gerada pela IA:
@@ -51,12 +52,12 @@ O score é composto por 6 dimensões independentes, cada uma com peso e explica�
 - Retorno ao Acionista
 - Gestão de Risco
 
-### Módulos esperados (backend)
-- `stock` — entidades, repositórios e serviço de cotação
-- `analysis` — orquestração do score, integração com LangChain4j
-- `scheduler` — jobs de atualização de dados via script Python (yfinance)
-- `websocket` — configuração STOMP e broadcasting
-- `cache` — abstração sobre Redis
+### Módulos (backend)
+- `stock` — cotações e serviço de leitura do cache
+- `analysis` — orquestração do score, parser/validação, comparação, backtesting, integração LangChain4j
+- `scheduler` — `PythonScriptRunner` (execução com timeout) e jobs de atualização/indexação
+- `cache` — abstração sobre Redis (SCAN, nunca KEYS)
+- `auth` / `user` / `portfolio` — OAuth2 Google + JWT, carteira do usuário
 
 ## Convenções de código
 

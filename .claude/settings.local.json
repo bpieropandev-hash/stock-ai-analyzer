@@ -34,7 +34,10 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Sort-Object)",
       "Bash(python *)",
-      "Bash(del *)"
+      "Bash(del *)",
+      "PowerShell(podman machine *)",
+      "PowerShell(podman compose *)",
+      "PowerShell(podman ps *)"
     ]
   }
 }

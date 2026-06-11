@@ -26,6 +26,13 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD}
 
+  task:
+    scheduling:
+      pool:
+        # StockFetchJob (60s) e HistoricalIndexingJob (diário, demorado) não podem
+        # disputar uma única thread — com pool 1, a indexação congela as cotações
+        size: 2
+
   security:
     oauth2:
       client:
@@ -48,6 +55,7 @@ python:
     historical-fundamentals-path: ${PYTHON_HISTORICAL_PATH:scripts/fetch_historical_fundamentals.py}
     sentiment-path: ${PYTHON_SENTIMENT_PATH:scripts/analyze_sentiment.py}
     technical-indicators-path: ${PYTHON_TECHNICAL_PATH:scripts/fetch_technical_indicators.py}
+    price-history-path: ${PYTHON_PRICE_HISTORY_PATH:scripts/fetch_price_history.py}
 
 huggingface:
   token: ${HUGGINGFACE_TOKEN:}
@@ -69,5 +77,7 @@ embedding:
   store:
     table: stock_embeddings
 
+# Sem fallback — segredo de assinatura JWT previsível permitiria forjar tokens.
+# Defina JWT_SECRET no .env (mínimo 32 caracteres aleatórios).
 jwt:
-  secret: ${JWT_SECRET:stock-ai-analyzer-secret-key-2026}
+  secret: ${JWT_SECRET}

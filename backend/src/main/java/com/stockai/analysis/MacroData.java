@@ -11,5 +11,10 @@ public record MacroData(
         BigDecimal brentPrice,
         BigDecimal brentChangePct,
         BigDecimal wtiPrice,
-        BigDecimal wtiChangePct
+        BigDecimal wtiChangePct,
+        // Expectativas Focus (medianas) — análise usa expectativa, não só o dado corrente
+        BigDecimal focusSelicCurrentYear,
+        BigDecimal focusSelicNextYear,
+        BigDecimal focusIpcaCurrentYear,
+        BigDecimal focusIpcaNextYear
 ) {}

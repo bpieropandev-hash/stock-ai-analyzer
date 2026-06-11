@@ -2,8 +2,6 @@ package com.stockai.analysis;
 
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.ollama.OllamaEmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -13,11 +11,9 @@ import dev.langchain4j.store.embedding.pgvector.MetadataStorageMode;
 import dev.langchain4j.store.embedding.pgvector.PgVectorEmbeddingStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 
 import java.time.Duration;
 import java.util.List;
@@ -26,9 +22,6 @@ import java.util.List;
 public class EmbeddingStoreConfig {
 
     private static final Logger log = LoggerFactory.getLogger(EmbeddingStoreConfig.class);
-
-    // ThreadLocal que o wrapper preenche; StockAnalysisService lê após cada chamada
-    static final ThreadLocal<String> ACTIVE_MODEL = ThreadLocal.withInitial(() -> "desconhecido");
 
     @Value("${embedding.store.table:stock_embeddings}")
     private String tableName;
@@ -73,6 +66,8 @@ public class EmbeddingStoreConfig {
                 .build();
     }
 
+    // temperature 0.0 — scoring deve ser determinístico; variância de amostragem
+    // contamina o histórico e dispara alertas por ruído, não por fato novo
     @Bean("geminiChatModel")
     public ChatModel geminiChatModel() {
         return OpenAiChatModel.builder()
@@ -80,7 +75,7 @@ public class EmbeddingStoreConfig {
                 .apiKey(geminiApiKey)
                 .modelName("gemini-2.5-flash")
                 .responseFormat("json_object")
-                .temperature(0.2)
+                .temperature(0.0)
                 .maxTokens(8192)
                 .build();
     }
@@ -92,31 +87,9 @@ public class EmbeddingStoreConfig {
                 .apiKey(groqApiKey)
                 .modelName("qwen/qwen3-32b")
                 .responseFormat("json_object")
-                .temperature(0.2)
+                .temperature(0.0)
                 .maxTokens(8192)
                 .build();
-    }
-
-    @Bean
-    @Primary
-    public ChatModel chatModel(
-            @Qualifier("geminiChatModel") ChatModel gemini,
-            @Qualifier("groqChatModel") ChatModel groq) {
-        return new ChatModel() {
-            @Override
-            public ChatResponse chat(ChatRequest request) {
-                try {
-                    ChatResponse response = gemini.chat(request);
-                    ACTIVE_MODEL.set("Gemini");
-                    return response;
-                } catch (Exception e) {
-                    log.warn("Gemini indisponível ({}), ativando fallback Groq", e.getMessage());
-                    ChatResponse response = groq.chat(request);
-                    ACTIVE_MODEL.set("Groq (fallback)");
-                    return response;
-                }
-            }
-        };
     }
 
     @Bean

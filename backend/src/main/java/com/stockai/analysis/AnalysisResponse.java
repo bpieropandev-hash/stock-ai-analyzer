@@ -5,5 +5,8 @@ public record AnalysisResponse(
         String sector,
         String simpleSummary,
         String recommendation,
-        String disclaimer
+        String disclaimer,
+        // Auditoria — permite explicar por que um score mudou entre análises
+        String modelUsed,
+        String promptVersion
 ) {}

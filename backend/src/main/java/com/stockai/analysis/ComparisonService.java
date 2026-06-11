@@ -57,7 +57,8 @@ public class ComparisonService {
     }
 
     private AnalysisResponse getOrAnalyze(String ticker) throws Exception {
-        String cached = redisTemplate.opsForValue().get(CACHE_PREFIX + ticker);
+        // Chave de cache usa o ticker normalizado (.SA) — mesmo formato gravado por analyze()
+        String cached = redisTemplate.opsForValue().get(CACHE_PREFIX + StockAnalysisService.normalizeTicker(ticker));
         if (cached != null) {
             try {
                 log.debug("Cache HIT para {} na comparação", ticker);

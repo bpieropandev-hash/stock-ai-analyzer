@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
 import java.util.List;
 
 @Component
@@ -24,40 +25,28 @@ public class StockFetchJob {
 
     private final RedisStockCache cache;
     private final ObjectMapper objectMapper;
+    private final PythonScriptRunner scriptRunner;
 
     @Value("${python.script.path:scripts/fetch_stock.py}")
     private String scriptPath;
 
-    public StockFetchJob(RedisStockCache cache, ObjectMapper objectMapper) {
+    public StockFetchJob(RedisStockCache cache, ObjectMapper objectMapper, PythonScriptRunner scriptRunner) {
         this.cache = cache;
         this.objectMapper = objectMapper;
+        this.scriptRunner = scriptRunner;
     }
 
     @Scheduled(fixedRate = 60_000)
     public void fetchQuotes() {
         try {
-            Process process = new ProcessBuilder("python", scriptPath)
-                    .start();
+            PythonScriptRunner.ScriptResult result = scriptRunner.run(scriptPath, Duration.ofSeconds(55));
 
-            String stdout = new String(process.getInputStream().readAllBytes());
-            String stderr = new String(process.getErrorStream().readAllBytes());
-            int exitCode = process.waitFor();
-
-            if (!stderr.isBlank()) {
-                log.warn("Script Python reportou: {}", stderr.strip());
-            }
-
-            if (exitCode != 0) {
-                log.error("Script encerrou com código {}: {}", exitCode, stderr.strip());
+            if (result.failed()) {
+                log.error("Script de cotações falhou (código {}): {}", result.exitCode(), result.stderr());
                 return;
             }
 
-            if (stdout.isBlank()) {
-                log.warn("Script Python retornou saída vazia");
-                return;
-            }
-
-            List<StockQuote> quotes = objectMapper.readValue(stdout, new TypeReference<>() {});
+            List<StockQuote> quotes = objectMapper.readValue(result.stdout(), new TypeReference<>() {});
 
             int saved = 0;
             for (StockQuote quote : quotes) {

@@ -7,7 +7,7 @@
 ![Python](https://img.shields.io/badge/Python-3.11+-yellow?logo=python)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791?logo=postgresql)
 
-AI-powered investment analysis platform for Brazilian stocks (B3). Fetches real-time quotes and fundamentals via yfinance, runs a multi-dimensional scoring pipeline using a local LLM (Ollama), and delivers structured buy/hold/avoid recommendations through a REST API and WebSocket feed.
+AI-powered investment analysis platform for Brazilian stocks (B3). Fetches quotes and fundamentals via yfinance, runs a multi-dimensional scoring pipeline using Gemini 2.5 Flash (with Groq fallback), and delivers structured analysis through a REST API. Quotes are refreshed every 60s by a scheduled job and served from Redis.
 
 ---
 
@@ -17,11 +17,12 @@ AI-powered investment analysis platform for Brazilian stocks (B3). Fetches real-
 |---|---|
 | Backend | Spring Boot 4, Java 26, Maven |
 | Frontend | Angular 21, TypeScript |
-| Database | PostgreSQL + pgvector (embeddings), Redis (cache) |
-| Data source | yfinance (Python) for B3 quotes and fundamentals; BCB open API for macro data (Selic, IPCA) |
-| LLM | Ollama — `qwen2.5:7b` for analysis, `nomic-embed-text` (768-dim) for embeddings |
-| Sentiment | FinBERT via HuggingFace for news sentiment scoring |
-| RAG | LangChain4j + pgvector for historical context retrieval |
+| Database | PostgreSQL (JPA: alerts, score history, portfolio) + pgvector (embeddings), Redis (cache) |
+| Data source | yfinance (Python) for B3 quotes and fundamentals; BCB open APIs for macro data (Selic, IPCA, USD/BRL) and Focus market expectations |
+| LLM | Gemini 2.5 Flash (primary) with Groq `qwen/qwen3-32b` fallback, via LangChain4j OpenAI-compatible client, temperature 0 |
+| Embeddings | Ollama `nomic-embed-text` (768-dim), local |
+| Sentiment | Lexicon-based financial sentiment scoring over news headlines (PT/EN) |
+| RAG | LangChain4j + pgvector for historical fundamentals retrieval |
 
 ---
 
@@ -42,18 +43,24 @@ AI-powered investment analysis platform for Brazilian stocks (B3). Fetches real-
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │ StockAnalysisService                                    │   │
 │  │  1. Redis cache check  (analysis:{TICKER}, TTL 30 min)  │   │
-│  │  2. Gather data        (fundamentals + macro + news)     │   │
-│  │  3. RAG retrieval      (pgvector similarity search)      │   │
-│  │  4. Build prompt       (sector-aware, 6-dimension)       │   │
-│  │  5. LLM call           (Ollama qwen2.5:7b)               │   │
-│  │  6. Parse + score      (DimensionScore × 6 → scoreGeral) │   │
+│  │  2. Gather data        (fundamentals + macro + news +    │   │
+│  │                         technicals, parallel via         │   │
+│  │                         virtual threads)                 │   │
+│  │  3. RAG retrieval      (pgvector — historical            │   │
+│  │                         fundamentals only)               │   │
+│  │  4. Build prompt       (sector-aware, scoring rubric,    │   │
+│  │                         sector benchmarks, Focus data)   │   │
+│  │  5. LLM call           (Gemini 2.5 Flash → Groq fallback)│   │
+│  │  6. Parse + validate   (scores clamped 0-10; scoreGeral  │   │
+│  │                         computed in Java, never by LLM)  │   │
 │  │  7. Embed + store      (pgvector, nomic-embed-text)      │   │
-│  │  8. Save history       (ScoreSnapshot via pgvector)      │   │
+│  │  8. Save history       (score_history table, JPA, with   │   │
+│  │                         model + prompt version)          │   │
 │  │  9. Persist alerts     (PostgreSQL, if Δscore > 1.5)     │   │
 │  │ 10. Cache response     (Redis 30 min)                    │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  WebSocket (STOMP) ──► pushes quote updates to Angular         │
+│  Frontend polls REST endpoints (no WebSocket)                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -64,13 +71,15 @@ Each analysis produces six independent dimension scores (0–10), averaged into 
 | Dimension | What it measures |
 |---|---|
 | Fundamentos | Earnings quality, margins, ROE/ROA, growth |
-| Valuation | P/E, P/B vs sector; FCF as fair-value support |
+| Valuation | P/E, P/B vs sector benchmark ranges; FCF as fair-value support |
 | Regime/Momentum | Technical signals (RSI, MACD, SMAs, Bollinger) |
-| Sentimento Institucional | FinBERT news sentiment adjusted by beta |
+| Sentimento Institucional | Lexicon-based news headline sentiment adjusted by beta |
 | Retorno ao Acionista | Dividend yield, payout consistency, FCF |
 | Gestão de Risco | Debt/equity, Selic impact, FX exposure |
 
-Score → recommendation mapping: `> 7.5` **COMPRAR** · `≥ 6.0` **MANTER** · `≥ 4.5` **AGUARDAR** · `< 4.5` **EVITAR**
+`scoreGeral` is computed in Java as the arithmetic mean of the six dimensions (the LLM's own arithmetic is discarded). Score → recommendation mapping: `> 7.5` **COMPRAR** · `≥ 6.0` **MANTER** · `≥ 4.5` **AGUARDAR** · `< 4.5` **EVITAR**
+
+Each persisted analysis records `modelUsed` and `promptVersion` for auditability — scores from different models/prompt versions are not directly comparable.
 
 ---
 
@@ -81,13 +90,13 @@ Score → recommendation mapping: `> 7.5` **COMPRAR** · `≥ 6.0` **MANTER** ·
 - Java 26+
 - Maven 3.9+
 - Node.js 20+ and npm
-- Python 3.11+ with `pip install yfinance finbr transformers torch`
-- [Ollama](https://ollama.ai) running locally with models pulled:
+- Python 3.11+ with `pip install yfinance pandas`
+- [Ollama](https://ollama.ai) running locally (embeddings only):
   ```bash
-  ollama pull qwen2.5:7b
   ollama pull nomic-embed-text
   ```
-- Docker or Podman (for PostgreSQL + Redis)
+- Gemini API key (primary LLM) and Groq API key (fallback)
+- Podman (for PostgreSQL + Redis)
 
 ### 1. Start infrastructure
 
@@ -120,7 +129,11 @@ REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
 OLLAMA_BASE_URL=http://localhost:11434
-HUGGINGFACE_TOKEN=hf_your_token_here   # optional, for FinBERT
+GEMINI_API_KEY=your_gemini_key
+GROQ_API_KEY=your_groq_key
+GOOGLE_CLIENT_ID=your_oauth_client_id
+GOOGLE_CLIENT_SECRET=your_oauth_client_secret
+JWT_SECRET=random_32_chars_minimum        # required — no fallback
 ```
 
 ### 3. Start the backend
@@ -157,6 +170,7 @@ npm start
 | `GET` | `/api/stocks/{ticker}/analysis` | Get or generate analysis (cache-first) |
 | `POST` | `/api/stocks/{ticker}/analysis/refresh` | Force recompute, bypass cache |
 | `GET` | `/api/stocks/{ticker}/score-history?days=30` | Historical score snapshots |
+| `GET` | `/api/stocks/{ticker}/backtest` | Score vs realized 30/90-day forward returns (Pearson correlation) |
 
 **Example:**
 ```bash
@@ -201,22 +215,22 @@ An alert is triggered when `|Δscore| > 1.5` between consecutive daily analyses.
 
 ### RAG (Retrieval-Augmented Generation)
 
-Before each LLM call, the service embeds the current fundamentals text using `nomic-embed-text` and queries pgvector for the 3 most similar historical segments (filtered by ticker). This historical context is injected into the prompt so the model can reason about trends, not just today's snapshot.
+Before each LLM call, the service embeds the current fundamentals text using `nomic-embed-text` and queries pgvector for the 3 most similar **historical fundamentals** segments (filtered by ticker and `type=historical_fundamentals`). Past LLM analyses are deliberately excluded from retrieval — feeding the model its own previous scores would create an anchoring feedback loop.
 
 ### Embeddings
 
-Two types of vectors are stored in the `stock_embeddings` table:
+Vectors stored in the `stock_embeddings` table:
 
 | Type | Content | Purpose |
 |---|---|---|
-| `analysis` | Fundamentals text | RAG retrieval for future analyses |
-| `score_history` | JSON ScoreSnapshot | Historical score querying |
+| `historical_fundamentals` | Quarterly fundamentals snapshots | RAG retrieval (re-indexed daily with dedup) |
+| `analysis` | Past analysis text | Stored for future use; excluded from RAG retrieval |
 
-Each vector carries metadata (`ticker`, `date`, `type`) enabling precise filtered search via pgvector.
+Score history lives in the relational `score_history` table (JPA), not in pgvector.
 
 ### Scoring pipeline
 
-The LLM receives a structured prompt with fundamentals, macro data (Selic, IPCA, USD/BRL, Brent), FinBERT sentiment score, technical indicators, RAG context, and sector-specific instructions. It returns raw JSON with six `{score, explicacao}` pairs plus a plain-language `simpleSummary`. The backend validates the JSON, derives the recommendation from `scoreGeral`, and caches the full `AnalysisResponse` for 30 minutes.
+The LLM receives a structured prompt with fundamentals, macro data (Selic, IPCA, USD/BRL, Brent, Focus expectations), lexicon sentiment score, technical indicators, RAG context, sector-specific instructions, sector benchmark ranges, and an explicit scoring rubric with anchors per dimension. It reasons in an `analise` field before scoring, then returns six `{score, explicacao}` pairs plus a plain-language `simpleSummary`. The backend clamps each score to 0–10, rejects responses with missing dimensions, computes `scoreGeral` itself, derives the recommendation, and caches the full `AnalysisResponse` for 30 minutes. Concurrent requests for the same ticker share a single analysis (per-ticker lock).
 
 ### Sector awareness
 

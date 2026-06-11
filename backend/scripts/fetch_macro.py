@@ -17,11 +17,19 @@ import json
 import math
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
+from datetime import date
 
 import yfinance as yf
 
 BCB_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{series}/dados/ultimos/{n}?formato=json"
+
+# API Olinda (BCB) — expectativas do boletim Focus (medianas de mercado)
+FOCUS_URL = (
+    "https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/"
+    "ExpectativasMercadoAnuais?$filter={filter}&$orderby=Data%20desc&$top=1&$format=json"
+)
 
 SELIC_SERIES = 432
 IPCA_SERIES = 433
@@ -73,6 +81,29 @@ def _ipca_acumulado_12m(registros: list[dict]) -> float | None:
 
 
 # ---------------------------------------------------------------------------
+# Expectativas Focus
+# ---------------------------------------------------------------------------
+
+def _fetch_focus_median(indicador: str, ano: int) -> float | None:
+    """Mediana mais recente do Focus para um indicador e ano de referência."""
+    odata_filter = urllib.parse.quote(
+        f"Indicador eq '{indicador}' and DataReferencia eq '{ano}'"
+    )
+    url = FOCUS_URL.format(filter=odata_filter)
+    try:
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        registros = payload.get("value", [])
+        if not registros:
+            return None
+        return _safe_float(registros[0].get("Mediana"))
+    except Exception as exc:
+        print(f"Aviso: falha ao consultar Focus {indicador}/{ano}: {exc}", file=sys.stderr)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Commodities
 # ---------------------------------------------------------------------------
 
@@ -104,6 +135,12 @@ def fetch_macro() -> dict:
     brent_price, brent_change_pct = _fetch_commodity("BZ=F")
     wti_price, wti_change_pct = _fetch_commodity("CL=F")
 
+    ano_atual = date.today().year
+    focus_selic_atual = _fetch_focus_median("Selic", ano_atual)
+    focus_selic_prox = _fetch_focus_median("Selic", ano_atual + 1)
+    focus_ipca_atual = _fetch_focus_median("IPCA", ano_atual)
+    focus_ipca_prox = _fetch_focus_median("IPCA", ano_atual + 1)
+
     ipca_mensal = [
         {"date": r.get("data"), "value": _safe_float(r.get("valor"))}
         for r in ipca_data
@@ -129,6 +166,12 @@ def fetch_macro() -> dict:
         # WTI Crude Oil (USD/barril)
         "wtiPrice": wti_price,
         "wtiChangePct": wti_change_pct,
+
+        # Expectativas Focus (medianas de mercado, % a.a. / % no ano)
+        "focusSelicCurrentYear": focus_selic_atual,
+        "focusSelicNextYear": focus_selic_prox,
+        "focusIpcaCurrentYear": focus_ipca_atual,
+        "focusIpcaNextYear": focus_ipca_prox,
     }
 
 

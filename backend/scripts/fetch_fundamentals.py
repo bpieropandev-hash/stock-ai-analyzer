@@ -119,7 +119,9 @@ def fetch_fundamentals(ticker: str) -> dict:
         "operatingMargin": _safe_float(info.get("operatingMargins")),
 
         # Endividamento e balanço patrimonial (valores absolutos em BRL)
-        "debtToEquity": _safe_float(info.get("debtToEquity")),
+        # yfinance retorna debtToEquity como percentual (84.5 = 0.845x) — normaliza para razão
+        "debtToEquity": (lambda v: round(v / 100, 4) if v is not None else None)(
+            _safe_float(info.get("debtToEquity"))),
         "totalDebt": _safe_int(info.get("totalDebt")),
         "totalCash": _safe_int(info.get("totalCash")),
         "totalRevenue": _safe_int(info.get("totalRevenue")),

@@ -20,11 +20,14 @@ public class AnalysisController {
 
     private final StockAnalysisService analysisService;
     private final ScoreHistoryService scoreHistoryService;
+    private final BacktestService backtestService;
 
     public AnalysisController(StockAnalysisService analysisService,
-                               ScoreHistoryService scoreHistoryService) {
+                               ScoreHistoryService scoreHistoryService,
+                               BacktestService backtestService) {
         this.analysisService = analysisService;
         this.scoreHistoryService = scoreHistoryService;
+        this.backtestService = backtestService;
     }
 
     @GetMapping("/{ticker}/analysis")
@@ -51,6 +54,19 @@ public class AnalysisController {
     public ResponseEntity<List<ScoreSnapshot>> scoreHistory(
             @PathVariable String ticker,
             @RequestParam(defaultValue = "30") int days) {
-        return ResponseEntity.ok(scoreHistoryService.getScoreHistory(ticker.toUpperCase(), days));
+        // histórico é gravado com o ticker normalizado (.SA)
+        String normalized = StockAnalysisService.normalizeTicker(ticker);
+        return ResponseEntity.ok(scoreHistoryService.getScoreHistory(normalized, days));
+    }
+
+    @GetMapping("/{ticker}/backtest")
+    public ResponseEntity<BacktestService.BacktestResult> backtest(@PathVariable String ticker) {
+        try {
+            String normalized = StockAnalysisService.normalizeTicker(ticker);
+            return ResponseEntity.ok(backtestService.backtest(normalized));
+        } catch (Exception e) {
+            log.error("Erro no backtest de {}: {}", ticker, e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }
