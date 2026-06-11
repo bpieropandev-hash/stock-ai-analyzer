@@ -79,3 +79,52 @@ O score é composto por 6 dimensões independentes, cada uma com peso e explica�
 ### Imports Java
 - NUNCA use uma classe sem verificar se ela existe na versão da dependência declarada no pom.xml
 - Spring Boot 4 usa `tools.jackson.*` e não `com.fasterxml.jackson.*`
+
+## Diretrizes Visuais Frontend (OBRIGATÓRIAS)
+
+### Design System
+- Framework CSS: SCSS puro com variáveis CSS — SEM Tailwind, SEM Bootstrap
+- Cores definidas em `styles.scss` como variáveis CSS:
+  ```
+  --color-bg: #0a0f1e
+  --color-surface: #0d1929
+  --color-surface-2: #111827
+  --color-accent: #00d4aa
+  --color-accent-2: #f59e0b
+  --color-danger: #ef4444
+  --color-text: #e2e8f0
+  --color-text-muted: #94a3b8
+  --color-border: rgba(255,255,255,0.08)
+  ```
+- Tipografia: Syne (títulos/números), Inter (corpo) — importadas do Google Fonts
+- Border-radius padrão: 8px para cards, 6px para inputs, 20px para badges
+- Sombra padrão: `0 4px 24px rgba(0,0,0,0.4)`
+
+### Proibições absolutas
+- NUNCA usar gradientes roxos ou azuis genéricos
+- NUNCA usar `border-radius` > 12px em cards
+- NUNCA usar `font-family` genérica (Arial, Roboto, system-ui)
+- NUNCA usar cores hardcoded — sempre usar variáveis CSS
+- NUNCA criar layouts sem `max-width` definido
+- NUNCA deixar componente sem estado de loading
+
+### Padrões obrigatórios
+- Todos os cards: `background var(--color-surface)`, `border 1px solid var(--color-border)`
+- Todos os títulos de página: `font-family` Syne, `font-size` 2rem, `font-weight` 700
+- Todas as barras de score: `height 8px`, `border-radius 4px`, animação CSS de 0 até o valor
+- Badges de recomendação: `padding 6px 16px`, `font-size 12px`, `font-weight 600`, uppercase
+- Max-width do conteúdo: 1280px, `margin 0 auto`, `padding 0 24px`
+- Gap entre cards: 16px
+- Spacing vertical entre seções: 32px
+
+### Componentes específicos
+- **Score gauge**: SVG circle com `stroke-dasharray` animado, número centralizado em Syne bold
+- **Score bar**: `div` com `transition width 0.8s ease`, cor baseada no valor (vermelho `<4`, amarelo `4–6.5`, verde `>6.5`)
+- **Stock card no dashboard**: `height 120px`, mostrar ticker + preço + variação + setor
+- **Recommendation badge**: cores fixas — `COMPRAR=#00d4aa`, `MANTER=#3b82f6`, `AGUARDAR=#f59e0b`, `EVITAR=#ef4444`
+
+### Processo obrigatório para mudanças visuais
+1. Ler este CLAUDE.md antes de qualquer mudança de CSS
+2. Verificar se a variável CSS existe antes de criar nova
+3. Compilar com `ng build` após cada mudança
+4. Reportar o que foi alterado e por quê

@@ -26,6 +26,15 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD}
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope: email,profile
+
 pgvector:
   host: ${POSTGRES_HOST:localhost}
   port: ${POSTGRES_PORT:5432}
@@ -59,16 +68,6 @@ groq:
 embedding:
   store:
     table: stock_embeddings
-
-spring:
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${GOOGLE_CLIENT_ID:}
-            client-secret: ${GOOGLE_CLIENT_SECRET:}
-            scope: email,profile
 
 jwt:
   secret: ${JWT_SECRET:stock-ai-analyzer-secret-key-2026}

@@ -1,19 +1,156 @@
 #!/usr/bin/env python3
-"""Análise de sentimento financeiro via HuggingFace Inference API (ProsusAI/finbert)."""
+"""Análise de sentimento financeiro por léxico especializado (PT/EN) — sem dependência de rede."""
 import json
-import os
+import re
 import sys
-import time
-import urllib.error
-import urllib.request
 
-FINBERT_URL = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
-RETRY_WAIT_SECONDS = 20   # cold start do modelo na HuggingFace
-MAX_RETRIES = 2
+# Léxico financeiro positivo — PT e EN
+_POSITIVE = {
+    # Resultados
+    "lucro", "lucros", "profit", "profits", "superávit", "surplus",
+    "receita recorde", "resultado positivo", "record revenue",
+    # Crescimento
+    "crescimento", "cresceu", "crescendo", "growth", "grew", "growing",
+    "expansão", "expandiu", "expansion", "expanded",
+    "alta", "subiu", "subindo", "valorização", "valorizou",
+    "rise", "rising", "rose", "gain", "gains", "gained",
+    "avanço", "avançou", "advance", "advanced",
+    "aumento", "aumentou", "increase", "increased",
+    "aceleração", "acelerou", "acceleration", "accelerated",
+    # Dividendos e retorno
+    "dividendo", "dividendos", "dividend", "dividends",
+    "jcp", "juros sobre capital", "buyback", "recompra",
+    "rendimento", "yield", "retorno", "return",
+    # Margem e eficiência
+    "margem", "margin", "ebitda positivo", "geração de caixa", "cash generation",
+    "fluxo de caixa positivo", "positive cash flow", "free cash flow positivo",
+    "eficiência", "efficiency",
+    # Guidance e expectativa
+    "guidance elevado", "guidance positivo", "raised guidance", "upgraded",
+    "superou expectativas", "supera expectativas", "beat expectations", "acima do esperado", "above estimates",
+    "revisão para cima", "upward revision", "upgrade",
+    "recomendação de compra", "buy rating", "outperform", "overweight",
+    # Mercado e setor
+    "demanda forte", "strong demand", "mercado aquecido", "bull market",
+    "recuperação", "recovery", "recovered", "retomada",
+    "oportunidade", "opportunity", "potencial", "potential",
+    "inovação", "innovation", "disruptivo", "disruptive",
+    "parceria estratégica", "strategic partnership", "fusão positiva",
+    "liderança de mercado", "market leadership",
+    # Financeiro
+    "dívida reduzida", "redução da dívida", "debt reduced", "debt reduction",
+    "desalavancagem", "deleveraging", "desalavancou", "deleverage",
+    "caixa robusto", "strong cash", "liquidez saudável", "liquidity",
+    "rating elevado", "rating upgrade", "investment grade",
+}
+
+# Léxico financeiro negativo — PT e EN
+_NEGATIVE = {
+    # Resultados ruins
+    "prejuízo", "prejuizos", "loss", "losses", "deficit", "déficit",
+    "resultado negativo", "negative result", "queda de lucro", "profit decline",
+    # Queda
+    "queda de receita", "queda de lucro", "queda de resultado",
+    "caiu", "caindo", "decline", "fell", "falling",
+    "desvalorização", "desvalorizou", "depreciation", "depreciated",
+    "baixa", "recuo", "recuou", "drop", "dropped", "slump", "slumped",
+    "retração", "retraiu", "contraction", "contracted",
+    "redução de receita", "redução de lucro", "redução de margem",
+    "reduziu receita", "revenue reduction", "revenue decline",
+    "deterioração", "deteriorou", "deterioration", "deteriorated",
+    # Dívida e caixa
+    "endividamento", "dívida alta", "high debt", "alavancagem excessiva",
+    "caixa negativo", "negative cash", "queima de caixa", "cash burn",
+    "inadimplência", "default", "calote", "insolvência", "insolvency",
+    "falência", "bankruptcy", "recuperação judicial", "chapter 11",
+    # Guidance e expectativa negativa
+    "guidance reduzido", "lowered guidance", "guidance cortado",
+    "abaixo do esperado", "below estimates", "missed expectations",
+    "decepcionou", "disappointed", "revisão para baixo", "downward revision",
+    "downgrade", "rebaixamento", "underperform", "underweight", "sell rating",
+    # Risco e incerteza
+    "risco elevado", "high risk", "incerteza", "uncertainty",
+    "crise", "crisis", "recessão", "recession",
+    "inflação alta", "high inflation", "juros altos", "high rates",
+    "aperto monetário", "monetary tightening", "aperto fiscal",
+    "investigação", "investigation", "fraude", "fraud", "escândalo", "scandal",
+    "processo", "lawsuit", "multa", "fine", "penalidade", "penalty",
+    # Operacional
+    "greve", "strike", "paralisação", "shutdown",
+    "recall", "problema operacional", "operational issue",
+    "perda de contrato", "lost contract", "churn elevado", "high churn",
+    "perda de mercado", "market share loss", "concorrência intensa",
+    # Gestão
+    "troca de gestão", "management change", "CEO saiu", "CEO resigned",
+    "reestruturação forçada", "forced restructuring",
+}
+
+# Modificadores de intensidade
+_INTENSIFIERS = {"muito", "forte", "significativo", "expressivo", "grande",
+                 "forte", "very", "highly", "significantly", "strongly", "major"}
+_NEGATORS = {"não", "sem", "nenhum", "nunca", "jamais", "no", "not", "without", "never"}
+
+_TOKEN_RE = re.compile(r"\b[\w]+\b", re.UNICODE | re.IGNORECASE)
+
+
+def _tokenize(text: str) -> list[str]:
+    return _TOKEN_RE.findall(text.lower())
+
+
+def _score_text(text: str) -> tuple[str, float]:
+    """
+    Retorna (label, confidence) para um único texto.
+    Lógica: conta matches positivos e negativos ponderados por intensificadores,
+    descontados por negadores no contexto de janela de 3 tokens.
+    """
+    tokens = _tokenize(text)
+    text_lower = text.lower()
+
+    pos_score = 0.0
+    neg_score = 0.0
+
+    # Verifica frases compostas (bigramas e trigramas)
+    for phrase in _POSITIVE:
+        if phrase in text_lower:
+            pos_score += 1.5 if " " in phrase else 1.0
+
+    for phrase in _NEGATIVE:
+        if phrase in text_lower:
+            neg_score += 1.5 if " " in phrase else 1.0
+
+    # Ajuste por janela de contexto (negadores e intensificadores em tokens)
+    window = 3
+    for i, token in enumerate(tokens):
+        ctx_start = max(0, i - window)
+        ctx = tokens[ctx_start:i]
+
+        has_negator = any(t in _NEGATORS for t in ctx)
+        has_intensifier = any(t in _INTENSIFIERS for t in ctx)
+        multiplier = 0.0 if has_negator else (1.5 if has_intensifier else 1.0)
+
+        if token in _POSITIVE:
+            pos_score += multiplier * 0.5  # tokens já contados nas frases; peso menor
+        elif token in _NEGATIVE:
+            neg_score += multiplier * 0.5
+
+    total = pos_score + neg_score
+    if total == 0:
+        return "neutral", 0.5
+
+    pos_ratio = pos_score / total
+    neg_ratio = neg_score / total
+
+    if pos_ratio > neg_ratio:
+        confidence = min(0.95, 0.5 + (pos_ratio - 0.5) * 1.5)
+        return "positive", round(confidence, 4)
+    elif neg_ratio > pos_ratio:
+        confidence = min(0.95, 0.5 + (neg_ratio - 0.5) * 1.5)
+        return "negative", round(confidence, 4)
+    else:
+        return "neutral", 0.5
 
 
 def _fallback(n_texts: int = 0, reason: str = "") -> dict:
-    """Cria fallback neutro sem reutilizar o mesmo dict (evita mutação compartilhada)."""
     fb = {
         "sentimentScore": 5.0,
         "distribution": {"positive": 0, "negative": 0, "neutral": n_texts},
@@ -24,102 +161,44 @@ def _fallback(n_texts: int = 0, reason: str = "") -> dict:
     return fb
 
 
-def _call_api(payload: bytes, token: str) -> list:
-    """Chama a API com retry automático em caso de 503 (cold start do modelo)."""
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+def analyze(texts: list[str]) -> dict:
+    if not texts:
+        return _fallback(0, "no_input")
 
-    for attempt in range(1, MAX_RETRIES + 1):
-        req = urllib.request.Request(FINBERT_URL, data=payload, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                raw = resp.read().decode("utf-8")
-                print(f"[DEBUG] resposta bruta da API (tentativa {attempt}): {raw[:600]}", file=sys.stderr)
-                return json.loads(raw)
-        except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8", errors="replace")
-            print(f"[DEBUG] HTTP {e.code} (tentativa {attempt}): {body[:300]}", file=sys.stderr)
-            if e.code == 503 and attempt < MAX_RETRIES:
-                print(f"Modelo em cold start — aguardando {RETRY_WAIT_SECONDS}s...", file=sys.stderr)
-                time.sleep(RETRY_WAIT_SECONDS)
-                continue
-            raise
+    results = [_score_text(t) for t in texts]
+    labels = [r[0] for r in results]
+    confidences = [r[1] for r in results]
 
-    raise RuntimeError("Todas as tentativas de chamar a API falharam")
-
-
-def _normalize(results: list, n_texts: int) -> list:
-    """
-    A API retorna formatos diferentes dependendo do número de inputs:
-    - 1 input  → lista plana:   [{label, score}, {label, score}, ...]
-    - N inputs → lista aninhada: [[{...}, ...], [{...}, ...]]
-
-    Normaliza sempre para lista aninhada.
-    """
-    if not results:
-        return []
-    # Primeiro elemento é dict → lista plana (único input) → envolve em lista
-    if isinstance(results[0], dict):
-        print("[DEBUG] formato plano detectado — envolvendo em lista aninhada", file=sys.stderr)
-        return [results]
-    return results
-
-
-def _compute(results: list) -> dict:
-    """Calcula score, distribuição e confiança a partir dos resultados normalizados."""
-    pos_scores, neg_scores, neu_scores, confidences = [], [], [], []
-
-    for item in results:
-        if not item:
-            continue
-        best = max(item, key=lambda x: x["score"])
-        label = best["label"].lower()
-        score = best["score"]
-        confidences.append(score)
-        if label == "positive":
-            pos_scores.append(score)
-        elif label == "negative":
-            neg_scores.append(score)
-        else:
-            neu_scores.append(score)
-
+    pos_n = labels.count("positive")
+    neg_n = labels.count("negative")
+    neu_n = labels.count("neutral")
     total = len(results)
-    pos_n, neg_n, neu_n = len(pos_scores), len(neg_scores), len(neu_scores)
-    pos_avg = sum(pos_scores) / pos_n if pos_n else 0.0
-    neg_avg = sum(neg_scores) / neg_n if neg_n else 0.0
-    confidence = sum(confidences) / total if total else 0.0
 
-    # Normaliza score de [-total, +total] para [0, 10]
+    pos_conf = [confidences[i] for i, l in enumerate(labels) if l == "positive"]
+    neg_conf = [confidences[i] for i, l in enumerate(labels) if l == "negative"]
+
+    pos_avg = sum(pos_conf) / len(pos_conf) if pos_conf else 0.0
+    neg_avg = sum(neg_conf) / len(neg_conf) if neg_conf else 0.0
+
     raw = pos_n * pos_avg - neg_n * neg_avg
-    sentiment_score = round(max(0.0, min(10.0, ((raw / total) + 1) / 2 * 10)), 2) if total else 5.0
+    sentiment_score = round(max(0.0, min(10.0, ((raw / total) + 1) / 2 * 10)), 2)
+    avg_confidence = round(sum(confidences) / total, 4)
 
     return {
         "sentimentScore": sentiment_score,
         "distribution": {"positive": pos_n, "negative": neg_n, "neutral": neu_n},
-        "confidence": round(confidence, 4),
+        "confidence": avg_confidence,
     }
 
 
-def analyze(texts: list[str]) -> dict:
-    token = os.environ.get("HUGGINGFACE_TOKEN", "")
-    if not token:
-        print("HUGGINGFACE_TOKEN não configurado — retornando neutro", file=sys.stderr)
-        return _fallback(len(texts), "token_missing")
-
-    payload = json.dumps({"inputs": texts}).encode("utf-8")
-    raw_results = _call_api(payload, token)
-    normalized = _normalize(raw_results, len(texts))
-    print(f"[DEBUG] {len(normalized)} itens após normalização", file=sys.stderr)
-    return _compute(normalized)
-
-
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Uso: analyze_sentiment.py '<json-array-de-textos>'", file=sys.stderr)
-        print(json.dumps(_fallback(0, "no_args")))
+    raw = sys.stdin.read().strip()
+    if not raw:
+        print(json.dumps(_fallback(0, "no_input")))
         sys.exit(0)
 
     try:
-        texts = json.loads(sys.argv[1])
+        texts = json.loads(raw)
     except json.JSONDecodeError as e:
         print(f"JSON de entrada inválido: {e}", file=sys.stderr)
         print(json.dumps(_fallback(0, "invalid_input_json")))
@@ -132,7 +211,6 @@ if __name__ == "__main__":
     try:
         print(json.dumps(analyze(texts)))
     except Exception as e:
-        # Sempre imprime JSON válido — o serviço Java não pode receber stdout vazio
         print(f"Erro na análise de sentimento: {e}", file=sys.stderr)
         print(json.dumps(_fallback(len(texts), str(e)[:120])))
         sys.exit(0)

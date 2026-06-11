@@ -1,0 +1,114 @@
+import { Component, Input } from '@angular/core';
+import { CommonModule } from '@angular/common';
+
+@Component({
+  standalone: true,
+  selector: 'app-recommendation-badge',
+  imports: [CommonModule],
+  template: `
+    <span class="pill" [ngClass]="badgeClass" [class.large]="large">
+      <span class="pill-dot"></span>
+      {{ label }}
+    </span>
+  `,
+  styles: [`
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    .pill.large {
+      font-size: 12px;
+      padding: 7px 18px;
+      border-radius: 6px;
+      gap: 7px;
+    }
+
+    .pill-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+
+    .pill.large .pill-dot {
+      width: 7px;
+      height: 7px;
+    }
+
+    .buy {
+      background: rgba(0, 229, 195, 0.12);
+      color: #00e5c3;
+      border-color: rgba(0, 229, 195, 0.3);
+    }
+
+    .hold {
+      background: rgba(59, 130, 246, 0.12);
+      color: #3b82f6;
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    .wait {
+      background: rgba(240, 160, 32, 0.12);
+      color: #f0a020;
+      border-color: rgba(240, 160, 32, 0.3);
+    }
+
+    .avoid {
+      background: rgba(255, 59, 92, 0.12);
+      color: #ff3b5c;
+      border-color: rgba(255, 59, 92, 0.3);
+    }
+
+    .sell {
+      background: rgba(255, 59, 92, 0.12);
+      color: #ff3b5c;
+      border-color: rgba(255, 59, 92, 0.3);
+    }
+
+    .neutral {
+      background: rgba(98, 122, 143, 0.08);
+      color: #627a8f;
+      border-color: rgba(98, 122, 143, 0.2);
+    }
+  `]
+})
+export class RecommendationBadge {
+  @Input() recommendation = '';
+  @Input() large = false;
+
+  get badgeClass(): string {
+    const map: Record<string, string> = {
+      'COMPRAR':      'buy',
+      'COMPRAR_MAIS': 'buy',
+      'MANTER':       'hold',
+      'AGUARDAR':     'wait',
+      'EVITAR':       'avoid',
+      'VENDER':       'sell',
+    };
+    return map[this.recommendation] ?? 'neutral';
+  }
+
+  get label(): string {
+    const map: Record<string, string> = {
+      'COMPRAR':      'Comprar',
+      'COMPRAR_MAIS': 'Comprar Mais',
+      'MANTER':       'Manter',
+      'AGUARDAR':     'Aguardar',
+      'EVITAR':       'Evitar',
+      'VENDER':       'Vender',
+    };
+    return map[this.recommendation] ?? this.recommendation;
+  }
+}

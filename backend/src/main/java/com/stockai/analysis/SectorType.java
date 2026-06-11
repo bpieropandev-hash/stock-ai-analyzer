@@ -9,5 +9,7 @@ public enum SectorType {
     INDUSTRIA,
     LOGISTICA,
     PAPEL_CELULOSE,
+    IMOBILIARIO,
+    SAUDE,
     OUTROS
 }

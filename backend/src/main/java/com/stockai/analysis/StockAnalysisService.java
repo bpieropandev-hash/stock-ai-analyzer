@@ -11,6 +11,7 @@ import dev.langchain4j.store.embedding.filter.Filter;
 import dev.langchain4j.store.embedding.filter.MetadataFilterBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -37,7 +38,8 @@ public class StockAnalysisService {
 
     private final EmbeddingModel embeddingModel;
     private final EmbeddingStore<TextSegment> embeddingStore;
-    private final ChatModel chatModel;
+    private final ChatModel geminiModel;
+    private final ChatModel groqModel;
     private final ObjectMapper objectMapper;
     private final StockEmbeddingService embeddingService;
     private final ScoreHistoryService scoreHistoryService;
@@ -67,7 +69,8 @@ public class StockAnalysisService {
     public StockAnalysisService(
             EmbeddingModel embeddingModel,
             EmbeddingStore<TextSegment> embeddingStore,
-            ChatModel chatModel,
+            @Qualifier("geminiChatModel") ChatModel geminiModel,
+            @Qualifier("groqChatModel") ChatModel groqModel,
             ObjectMapper objectMapper,
             StockEmbeddingService embeddingService,
             ScoreHistoryService scoreHistoryService,
@@ -77,7 +80,8 @@ public class StockAnalysisService {
             SectorPromptConfig sectorPromptConfig) {
         this.embeddingModel = embeddingModel;
         this.embeddingStore = embeddingStore;
-        this.chatModel = chatModel;
+        this.geminiModel = geminiModel;
+        this.groqModel = groqModel;
         this.objectMapper = objectMapper;
         this.embeddingService = embeddingService;
         this.scoreHistoryService = scoreHistoryService;
@@ -102,22 +106,32 @@ public class StockAnalysisService {
             }
         }
 
-        SectorType sector = sectorClassifier.classify(ticker);
         StockFundamentals fundamentals = fetchFundamentals(ticker);
+        SectorType sector = sectorClassifier.classify(ticker, fundamentals.sector());
         MacroData macro = fetchMacro();
         List<NewsItem> news = fetchNews(ticker);
         String context = retrieveContext(fundamentals);
         SentimentResult sentiment = fetchSentiment(news);
         TechnicalIndicators technical = fetchTechnicalIndicators(ticker);
         String prompt = buildPrompt(fundamentals, macro, context, sentiment, technical, sector);
-        String rawResponse = chatModel.chat(prompt);
-        String modelUsed = EmbeddingStoreConfig.ACTIVE_MODEL.get();
-        EmbeddingStoreConfig.ACTIVE_MODEL.remove();
-        log.info("Análise gerada via {} para {}", modelUsed, ticker);
-        log.debug("Resposta bruta do LLM para {}: {}", ticker, rawResponse);
-        String sanitized = sanitize(rawResponse);
-        StockAnalysis analysis = parseAnalysis(ticker, sanitized);
-        String simpleSummary = parseSimpleSummary(sanitized);
+
+        LLMResult llmResult;
+        try {
+            llmResult = callWithParsing(ticker, prompt, geminiModel);
+            log.info("Análise gerada via Gemini para {}", ticker);
+        } catch (Exception geminiEx) {
+            log.warn("Gemini falhou para {} ({}), tentando Groq...", ticker, geminiEx.getMessage());
+            try {
+                llmResult = callWithParsing(ticker, prompt, groqModel);
+                log.info("Análise gerada via Groq (fallback) para {}", ticker);
+            } catch (Exception groqEx) {
+                log.error("Groq também falhou para {}: {}", ticker, groqEx.getMessage());
+                throw new RuntimeException("Análise temporariamente indisponível, tente novamente");
+            }
+        }
+
+        StockAnalysis analysis = llmResult.analysis();
+        String simpleSummary = llmResult.simpleSummary();
         indexAnalysis(analysis, fundamentals);
         scoreHistoryService.saveScore(analysis);
         scoreAlertService.checkAndAlert(analysis);
@@ -219,9 +233,12 @@ public class StockAnalysisService {
             if (titles.isEmpty()) return new SentimentResult(5.0, 0, 0, 0, 0.0);
 
             String titlesJson = objectMapper.writeValueAsString(titles);
-            ProcessBuilder pb = new ProcessBuilder("python", sentimentScriptPath, titlesJson);
+            ProcessBuilder pb = new ProcessBuilder("python", sentimentScriptPath);
             pb.environment().put("HUGGINGFACE_TOKEN", huggingfaceToken);
             Process process = pb.start();
+            // Envia JSON via stdin para evitar corrupção de aspas no Windows ao usar argv
+            process.getOutputStream().write(titlesJson.getBytes(StandardCharsets.UTF_8));
+            process.getOutputStream().close();
             String stdout = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
             process.waitFor();
@@ -340,11 +357,17 @@ public class StockAnalysisService {
                 INSTRUÇÕES DE ANÁLISE:
                 - Fundamentos: qualidade dos resultados, margens, ROE/ROA e crescimento
                 - Valuation: P/L e P/VPA vs setor; FCL como suporte ao preço justo
-                - Regime/Momentum: use technicalSignal como base objetiva, ajustando pelo contexto fundamentalista e câmbio USD/BRL
+                - Regime/Momentum: use technicalSignal como base objetiva, ajustando pelo contexto fundamentalista e câmbio USD/BRL. O indicador técnico é um dos 6 fatores, não deve puxar o score abaixo de 4.0 sozinho. Mesmo com momentum ruim, se os fundamentos forem fortes, regimeMomentum não deve ser menor que 3.5.
                 - Sentimento Institucional: use o score FinBERT como base objetiva, ajustando por beta e amplitude 52 semanas
-                - Retorno ao Acionista: dividend yield, consistência do histórico de dividendos e FCL
-                - Gestão de Risco: Selic eleva custo de capital; dívida/patrimônio e exposição cambial
+                - Retorno ao Acionista: dividend yield, consistência do histórico de dividendos e FCL. Se o dividendYield for 0 mas o histórico de pagamentos mostrar dividendos reais, use o histórico para calibrar retornoAcionista — dividend yield zero nos dados pode ser erro de coleta, não realidade.
+                - Gestão de Risco: Selic eleva custo de capital; dívida/patrimônio e exposição cambial. A Selic alta é um risco macroeconômico que afeta TODAS as empresas brasileiras — penalize gestaoRisco pela Selic apenas quando a empresa for particularmente vulnerável (varejo de crédito, alta alavancagem). Para empresas defensivas (energia, utilities, exportadoras), a Selic deve reduzir gestaoRisco em no máximo 1 ponto.
                 - Aplique as particularidades do CONTEXTO SETORIAL ao calibrar cada dimensão
+
+                CALIBRAÇÃO DOS SCORES:
+                - Score geral acima de 7.0 deve ser reservado para empresas realmente boas, com múltiplas dimensões fortes.
+                - Score abaixo de 3.0 deve ser reservado para empresas com problemas graves e estruturais.
+                - A maioria das ações sólidas da B3 deve ficar entre 5.5 e 7.5.
+                - Evite deflacionar sistematicamente scores por fatores macroeconômicos que afetam o mercado todo.
 
                 Responda SOMENTE com JSON válido, sem texto adicional, sem markdown.
 
@@ -518,6 +541,8 @@ public class StockAnalysisService {
     // Parse da resposta do LLM
     // -------------------------------------------------------------------------
 
+    private record LLMResult(StockAnalysis analysis, String simpleSummary) {}
+
     /** Remove blocos markdown que alguns modelos inserem ao redor do JSON. */
     private String sanitize(String raw) {
         String s = raw.strip();
@@ -527,40 +552,33 @@ public class StockAnalysisService {
         return s;
     }
 
-    private StockAnalysis parseAnalysis(String ticker, String json) {
-        try {
-            JsonNode root = objectMapper.readTree(json);
-            return new StockAnalysis(
-                    ticker,
-                    LocalDate.now(),
-                    parseDimension(root.get("fundamentos")),
-                    parseDimension(root.get("valuation")),
-                    parseDimension(root.get("regimeMomentum")),
-                    parseDimension(root.get("sentimentoInstitucional")),
-                    parseDimension(root.get("retornoAcionista")),
-                    parseDimension(root.get("gestaoRisco")),
-                    root.path("scoreGeral").asDouble(0.0),
-                    root.path("resumo").asString("N/D")
-            );
-        } catch (Exception e) {
-            log.error("Falha ao parsear resposta do LLM para {}: {}", ticker, e.getMessage());
-            return fallbackAnalysis(ticker);
-        }
-    }
-
-    private String parseSimpleSummary(String json) {
-        try {
-            return objectMapper.readTree(json).path("simpleSummary").asText("Análise indisponível.");
-        } catch (Exception e) {
-            return "Análise indisponível.";
-        }
+    /** Chama o modelo, parseia o JSON e lança exceção em caso de falha — sem score 0.0 silencioso. */
+    private LLMResult callWithParsing(String ticker, String prompt, ChatModel model) throws Exception {
+        String raw = model.chat(prompt);
+        String sanitized = sanitize(raw);
+        log.debug("Resposta bruta do LLM para {}: {}", ticker, raw);
+        JsonNode root = objectMapper.readTree(sanitized);
+        StockAnalysis analysis = new StockAnalysis(
+                ticker,
+                LocalDate.now(),
+                parseDimension(root.get("fundamentos")),
+                parseDimension(root.get("valuation")),
+                parseDimension(root.get("regimeMomentum")),
+                parseDimension(root.get("sentimentoInstitucional")),
+                parseDimension(root.get("retornoAcionista")),
+                parseDimension(root.get("gestaoRisco")),
+                root.path("scoreGeral").asDouble(0.0),
+                root.path("resumo").asText("N/D")
+        );
+        String simpleSummary = root.path("simpleSummary").asText("Análise indisponível.");
+        return new LLMResult(analysis, simpleSummary);
     }
 
     private DimensionScore parseDimension(JsonNode node) {
         if (node == null || node.isNull()) return new DimensionScore(0.0, "N/D");
         return new DimensionScore(
                 node.path("score").asDouble(0.0),
-                node.path("explicacao").asString("N/D"));
+                node.path("explicacao").asText("N/D"));
     }
 
     private void indexAnalysis(StockAnalysis analysis, StockFundamentals fundamentals) {
@@ -569,11 +587,5 @@ public class StockAnalysisService {
         } catch (Exception e) {
             log.warn("Falha ao indexar análise para {} — RAG não afetado: {}", analysis.ticker(), e.getMessage());
         }
-    }
-
-    private StockAnalysis fallbackAnalysis(String ticker) {
-        DimensionScore nd = new DimensionScore(0.0, "Análise indisponível");
-        return new StockAnalysis(ticker, LocalDate.now(), nd, nd, nd, nd, nd, nd, 0.0,
-                "Análise indisponível. Verifique se o Ollama está em execução com o modelo configurado.");
     }
 }

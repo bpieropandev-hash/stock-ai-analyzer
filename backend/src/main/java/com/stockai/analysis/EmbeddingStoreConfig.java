@@ -78,10 +78,10 @@ public class EmbeddingStoreConfig {
         return OpenAiChatModel.builder()
                 .baseUrl("https://generativelanguage.googleapis.com/v1beta/openai/")
                 .apiKey(geminiApiKey)
-                .modelName("gemini-3.5-flash")
+                .modelName("gemini-2.5-flash")
                 .responseFormat("json_object")
                 .temperature(0.2)
-                .maxTokens(4096)
+                .maxTokens(8192)
                 .build();
     }
 
@@ -90,10 +90,10 @@ public class EmbeddingStoreConfig {
         return OpenAiChatModel.builder()
                 .baseUrl("https://api.groq.com/openai/v1")
                 .apiKey(groqApiKey)
-                .modelName("qwen-qwen3-32b")
+                .modelName("qwen/qwen3-32b")
                 .responseFormat("json_object")
                 .temperature(0.2)
-                .maxTokens(4096)
+                .maxTokens(8192)
                 .build();
     }
 

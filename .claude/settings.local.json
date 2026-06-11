@@ -23,7 +23,18 @@
       "Bash(Sort-Object FullName)",
       "Bash(Select-String \"README\")",
       "Bash(./mvnw dependency:resolve -pl . -q)",
-      "Bash(./mvnw dependency:resolve -q)"
+      "Bash(./mvnw dependency:resolve -q)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\berna\\\\OneDrive\\\\Área de Trabalho\\\\Projetos\\\\stock-ai-analyzer\\\\frontend\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(npm install *)",
+      "Bash(npx ng *)",
+      "Bash(npm run *)",
+      "Bash(Get-ChildItem -Recurse \"C:\\\\Users\\\\berna\\\\OneDrive\\\\Área de Trabalho\\\\Projetos\\\\stock-ai-analyzer\\\\frontend\\\\src\\\\app\\\\core\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\berna\\\\OneDrive\\\\Área de Trabalho\\\\Projetos\\\\stock-ai-analyzer\\\\frontend\" -Recurse -Force)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(python *)",
+      "Bash(del *)"
     ]
   }
 }

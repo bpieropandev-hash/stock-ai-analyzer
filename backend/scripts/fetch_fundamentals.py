@@ -102,8 +102,8 @@ def fetch_fundamentals(ticker: str) -> dict:
         "ticker": ticker,
         "symbol": symbol,
         "name": info.get("longName"),
-        "sector": info.get("sector"),
-        "industry": info.get("industry"),
+        "sector": info.get("sector", ""),
+        "industry": info.get("industry", ""),
         "currency": info.get("currency"),
 
         # Valuation
