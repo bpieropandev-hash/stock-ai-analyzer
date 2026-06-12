@@ -1,14 +1,12 @@
 package com.stockai.analysis;
 
-import com.stockai.scheduler.PythonScriptRunner;
+import com.stockai.scheduler.PythonDataGateway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,17 +44,14 @@ public class BacktestService {
     ) {}
 
     private final ScoreHistoryService scoreHistoryService;
-    private final PythonScriptRunner scriptRunner;
+    private final PythonDataGateway pythonGateway;
     private final ObjectMapper objectMapper;
 
-    @Value("${python.script.price-history-path:scripts/fetch_price_history.py}")
-    private String priceHistoryScriptPath;
-
     public BacktestService(ScoreHistoryService scoreHistoryService,
-                           PythonScriptRunner scriptRunner,
+                           PythonDataGateway pythonGateway,
                            ObjectMapper objectMapper) {
         this.scoreHistoryService = scoreHistoryService;
-        this.scriptRunner = scriptRunner;
+        this.pythonGateway = pythonGateway;
         this.objectMapper = objectMapper;
     }
 
@@ -98,12 +93,10 @@ public class BacktestService {
     // -------------------------------------------------------------------------
 
     private TreeMap<LocalDate, Double> fetchPrices(String ticker) throws Exception {
-        PythonScriptRunner.ScriptResult result =
-                scriptRunner.run(priceHistoryScriptPath, Duration.ofSeconds(60), ticker.replace(".SA", ""), "2y");
+        String json = pythonGateway.priceHistory(ticker.replace(".SA", ""), "2y");
         TreeMap<LocalDate, Double> prices = new TreeMap<>();
-        if (result.failed()) return prices;
 
-        for (JsonNode node : objectMapper.readTree(result.stdout())) {
+        for (JsonNode node : objectMapper.readTree(json)) {
             if (!node.path("close").isNull()) {
                 prices.put(LocalDate.parse(node.path("date").asText()), node.path("close").asDouble());
             }

@@ -26,6 +26,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./mvnw package -DskipTests      # build sem testes
 ```
 
+### Sidecar Python (`/backend/scripts`) — opcional, recomendado em dev
+```bash
+pip install -r requirements.txt                                  # dependências (yfinance, pandas, fastapi, uvicorn)
+python -m uvicorn sidecar_app:app --host 127.0.0.1 --port 8001   # rodar de dentro de backend/scripts
+```
+Sem o sidecar no ar, o backend funciona normalmente via spawn de processo (mais lento: 2–5s de import do yfinance/pandas por chamada).
+
 ### Frontend (`/frontend`)
 ```bash
 npm install        # instalar dependências
@@ -37,11 +44,12 @@ npm run build      # build de produção
 ## Arquitetura
 
 ### Fluxo principal
-1. **Job agendado** (Spring `@Scheduled`, a cada 60s) invoca `scripts/fetch_stock.py` via `PythonScriptRunner` (timeout + leitura concorrente de streams). O script busca cotações B3 via yfinance (sufixo `.SA`) e retorna JSON no stdout; cada cotação vai para o Redis com TTL curto. O frontend consome via polling REST — **não há WebSocket**.
-2. **Pipeline de IA** (`StockAnalysisService`): coleta fundamentos, macro, notícias e indicadores técnicos **em paralelo** (virtual threads), recupera contexto RAG (apenas `historical_fundamentals` — análises passadas são excluídas para evitar feedback loop), monta o prompt com rubrica de pontuação e benchmarks setoriais, chama Gemini com fallback Groq.
-3. **Validação**: `AnalysisParser` clampa scores em 0–10, rejeita dimensões ausentes e calcula `scoreGeral` em Java (a aritmética do LLM é descartada). Cada análise registra `modelUsed` e `promptVersion` (constante `StockAnalysisService.PROMPT_VERSION` — incrementar a cada mudança de prompt).
-4. **Persistência**: score history em tabela JPA (`score_history`), alertas em PostgreSQL (Δscore > 1.5), embeddings no pgvector. `BacktestService` cruza scores com retornos realizados 30/90 dias (`GET /api/stocks/{ticker}/backtest`).
-5. **Single-flight**: requisições simultâneas do mesmo ticker compartilham uma análise (lock por ticker); resultado cacheado no Redis por 30 min.
+1. **Acesso a dados Python** centralizado no `PythonDataGateway`: prefere o **sidecar FastAPI** (`scripts/sidecar_app.py`, HTTP local na porta 8001, módulos yfinance/pandas já carregados) e cai para spawn de processo via `PythonScriptRunner` (timeout + leitura concorrente de streams) com cooldown de 30s quando o sidecar está fora do ar. Os scripts continuam funcionando standalone via CLI.
+2. **Job agendado** (Spring `@Scheduled`, a cada 60s) busca cotações B3 via gateway (yfinance, sufixo `.SA`); cada cotação vai para o Redis com TTL curto. O frontend consome via polling REST — **não há WebSocket**.
+3. **Pipeline de IA** (`StockAnalysisService`): coleta fundamentos, macro, notícias e indicadores técnicos **em paralelo** (virtual threads), recupera contexto RAG (apenas `historical_fundamentals` — análises passadas são excluídas para evitar feedback loop), monta o prompt com rubrica de pontuação e benchmarks setoriais, chama Gemini com fallback Groq.
+4. **Validação**: `AnalysisParser` clampa scores em 0–10, rejeita dimensões ausentes e calcula `scoreGeral` em Java (a aritmética do LLM é descartada). Cada análise registra `modelUsed` e `promptVersion` (constante `StockAnalysisService.PROMPT_VERSION` — incrementar a cada mudança de prompt).
+5. **Persistência**: score history em tabela JPA (`score_history`), alertas em PostgreSQL (Δscore > 1.5), embeddings no pgvector. `BacktestService` cruza scores com retornos realizados 30/90 dias (`GET /api/stocks/{ticker}/backtest`).
+6. **Single-flight**: requisições simultâneas do mesmo ticker compartilham uma análise (lock por ticker); resultado cacheado no Redis por 30 min.
 
 ### Score de investimento
 O score é composto por 6 dimensões independentes, cada uma com peso e explicação em linguagem natural gerada pela IA:
@@ -55,7 +63,7 @@ O score é composto por 6 dimensões independentes, cada uma com peso e explica�
 ### Módulos (backend)
 - `stock` — cotações e serviço de leitura do cache
 - `analysis` — orquestração do score, parser/validação, comparação, backtesting, integração LangChain4j
-- `scheduler` — `PythonScriptRunner` (execução com timeout) e jobs de atualização/indexação
+- `scheduler` — `PythonDataGateway` (sidecar HTTP com fallback de spawn), `PythonScriptRunner` (execução com timeout — usar só via gateway) e jobs de atualização/indexação
 - `cache` — abstração sobre Redis (SCAN, nunca KEYS)
 - `auth` / `user` / `portfolio` — OAuth2 Google + JWT, carteira do usuário
 

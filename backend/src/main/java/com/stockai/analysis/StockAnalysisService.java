@@ -1,6 +1,6 @@
 package com.stockai.analysis;
 
-import com.stockai.scheduler.PythonScriptRunner;
+import com.stockai.scheduler.PythonDataGateway;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.chat.ChatModel;
@@ -59,25 +59,10 @@ public class StockAnalysisService {
     private final SectorPromptConfig sectorPromptConfig;
     private final SectorBenchmarks sectorBenchmarks;
     private final AnalysisParser parser;
-    private final PythonScriptRunner scriptRunner;
+    private final PythonDataGateway pythonGateway;
 
     // Single-flight: requisições simultâneas do mesmo ticker compartilham uma análise
     private final ConcurrentHashMap<String, ReentrantLock> tickerLocks = new ConcurrentHashMap<>();
-
-    @Value("${python.script.fundamentals-path:scripts/fetch_fundamentals.py}")
-    private String fundamentalsScriptPath;
-
-    @Value("${python.script.macro-path:scripts/fetch_macro.py}")
-    private String macroScriptPath;
-
-    @Value("${python.script.news-path:scripts/fetch_news.py}")
-    private String newsScriptPath;
-
-    @Value("${python.script.sentiment-path:scripts/analyze_sentiment.py}")
-    private String sentimentScriptPath;
-
-    @Value("${python.script.technical-indicators-path:scripts/fetch_technical_indicators.py}")
-    private String technicalScriptPath;
 
     public StockAnalysisService(
             EmbeddingModel embeddingModel,
@@ -93,7 +78,7 @@ public class StockAnalysisService {
             SectorPromptConfig sectorPromptConfig,
             SectorBenchmarks sectorBenchmarks,
             AnalysisParser parser,
-            PythonScriptRunner scriptRunner) {
+            PythonDataGateway pythonGateway) {
         this.embeddingModel = embeddingModel;
         this.embeddingStore = embeddingStore;
         this.geminiModel = geminiModel;
@@ -107,7 +92,7 @@ public class StockAnalysisService {
         this.sectorPromptConfig = sectorPromptConfig;
         this.sectorBenchmarks = sectorBenchmarks;
         this.parser = parser;
-        this.scriptRunner = scriptRunner;
+        this.pythonGateway = pythonGateway;
     }
 
     public AnalysisResponse analyze(String ticker) throws Exception {
@@ -231,38 +216,27 @@ public class StockAnalysisService {
     }
 
     // -------------------------------------------------------------------------
-    // Execução dos scripts Python
+    // Coleta de dados Python (sidecar HTTP com fallback para spawn)
     // -------------------------------------------------------------------------
 
     private StockFundamentals fetchFundamentals(String ticker) throws Exception {
-        PythonScriptRunner.ScriptResult result =
-                scriptRunner.run(fundamentalsScriptPath, Duration.ofSeconds(60), ticker);
-        if (result.failed()) {
-            throw new IllegalStateException(
-                    "Script de fundamentals encerrou com código %d para %s".formatted(result.exitCode(), ticker));
-        }
-        return objectMapper.readValue(result.stdout(), StockFundamentals.class);
+        return objectMapper.readValue(pythonGateway.fundamentals(ticker), StockFundamentals.class);
     }
 
-    /** Retorna null se o script falhar — a análise continua sem dados macro. */
+    /** Retorna null se a coleta falhar — a análise continua sem dados macro. */
     private MacroData fetchMacro() {
         try {
-            PythonScriptRunner.ScriptResult result = scriptRunner.run(macroScriptPath, Duration.ofSeconds(45));
-            if (result.failed()) return null;
-            return objectMapper.readValue(result.stdout(), MacroData.class);
+            return objectMapper.readValue(pythonGateway.macro(), MacroData.class);
         } catch (Exception e) {
             log.warn("Falha ao buscar dados macroeconômicos: {}", e.getMessage());
             return null;
         }
     }
 
-    /** Retorna lista vazia se o script falhar — a análise continua sem notícias. */
+    /** Retorna lista vazia se a coleta falhar — a análise continua sem notícias. */
     private List<NewsItem> fetchNews(String ticker) {
         try {
-            PythonScriptRunner.ScriptResult result =
-                    scriptRunner.run(newsScriptPath, Duration.ofSeconds(30), ticker);
-            if (result.failed()) return List.of();
-            return objectMapper.readValue(result.stdout(),
+            return objectMapper.readValue(pythonGateway.news(ticker),
                     objectMapper.getTypeFactory().constructCollectionType(List.class, NewsItem.class));
         } catch (Exception e) {
             log.warn("Falha ao buscar notícias para {}: {}", ticker, e.getMessage());
@@ -282,13 +256,12 @@ public class StockAnalysisService {
                     .collect(Collectors.toList());
             if (titles.isEmpty()) return new SentimentResult(5.0, 0, 0, 0, 0.0);
 
-            // JSON via stdin para evitar corrupção de aspas no Windows ao usar argv
+            // JSON como corpo (sidecar) ou stdin (script) — argv corrompe aspas no Windows
             String titlesJson = objectMapper.writeValueAsString(titles);
-            PythonScriptRunner.ScriptResult result =
-                    scriptRunner.run(sentimentScriptPath, Duration.ofSeconds(30), titlesJson, Map.of());
-            if (result.stdout().isBlank()) return new SentimentResult(5.0, 0, 0, news.size(), 0.0);
+            String output = pythonGateway.sentiment(titlesJson);
+            if (output.isBlank()) return new SentimentResult(5.0, 0, 0, news.size(), 0.0);
 
-            JsonNode root = objectMapper.readTree(result.stdout());
+            JsonNode root = objectMapper.readTree(output);
             return new SentimentResult(
                     root.path("sentimentScore").asDouble(5.0),
                     root.path("distribution").path("positive").asInt(0),
@@ -302,14 +275,13 @@ public class StockAnalysisService {
         }
     }
 
-    /** Retorna null se o script falhar — a análise continua sem indicadores técnicos. */
+    /** Retorna null se a coleta falhar — a análise continua sem indicadores técnicos. */
     private TechnicalIndicators fetchTechnicalIndicators(String ticker) {
         try {
-            PythonScriptRunner.ScriptResult result =
-                    scriptRunner.run(technicalScriptPath, Duration.ofSeconds(60), ticker);
-            if (result.stdout().isBlank()) return null;
+            String output = pythonGateway.technicalIndicators(ticker);
+            if (output.isBlank()) return null;
 
-            JsonNode root = objectMapper.readTree(result.stdout());
+            JsonNode root = objectMapper.readTree(output);
             return new TechnicalIndicators(
                     root.path("currentPrice").isNull() ? null : root.path("currentPrice").asDouble(),
                     root.path("rsi").isNull() ? null : root.path("rsi").asDouble(),

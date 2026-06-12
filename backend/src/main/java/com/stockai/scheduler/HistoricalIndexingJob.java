@@ -7,13 +7,11 @@ import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.filter.MetadataFilterBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.Duration;
 import java.util.List;
 
 @Component
@@ -24,19 +22,16 @@ public class HistoricalIndexingJob {
     private final StockEmbeddingService embeddingService;
     private final EmbeddingStore<TextSegment> embeddingStore;
     private final ObjectMapper objectMapper;
-    private final PythonScriptRunner scriptRunner;
-
-    @Value("${python.script.historical-fundamentals-path:scripts/fetch_historical_fundamentals.py}")
-    private String scriptPath;
+    private final PythonDataGateway pythonGateway;
 
     public HistoricalIndexingJob(StockEmbeddingService embeddingService,
                                  EmbeddingStore<TextSegment> embeddingStore,
                                  ObjectMapper objectMapper,
-                                 PythonScriptRunner scriptRunner) {
+                                 PythonDataGateway pythonGateway) {
         this.embeddingService = embeddingService;
         this.embeddingStore = embeddingStore;
         this.objectMapper = objectMapper;
-        this.scriptRunner = scriptRunner;
+        this.pythonGateway = pythonGateway;
     }
 
     @Scheduled(initialDelay = 300_000, fixedDelay = 86_400_000)
@@ -59,11 +54,9 @@ public class HistoricalIndexingJob {
     }
 
     private int indexTicker(String ticker) throws Exception {
-        PythonScriptRunner.ScriptResult result =
-                scriptRunner.run(scriptPath, Duration.ofSeconds(90), ticker);
-        if (result.failed()) return 0;
+        String json = pythonGateway.historicalFundamentals(ticker);
 
-        List<HistoricalSnapshot> snapshots = objectMapper.readValue(result.stdout(), new TypeReference<>() {});
+        List<HistoricalSnapshot> snapshots = objectMapper.readValue(json, new TypeReference<>() {});
         if (snapshots.isEmpty()) return 0;
 
         // Remove os embeddings anteriores do ticker antes de re-indexar — o job é

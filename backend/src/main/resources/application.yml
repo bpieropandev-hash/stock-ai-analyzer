@@ -48,11 +48,15 @@ pgvector:
   database: ${POSTGRES_DB:stockai}
 
 python:
+  sidecar:
+    enabled: ${PYTHON_SIDECAR_ENABLED:true}
+    base-url: ${PYTHON_SIDECAR_URL:http://127.0.0.1:8001}
   script:
     path: ${PYTHON_SCRIPT_PATH:scripts/fetch_stock.py}
     fundamentals-path: ${PYTHON_FUNDAMENTALS_PATH:scripts/fetch_fundamentals.py}
     macro-path: ${PYTHON_MACRO_PATH:scripts/fetch_macro.py}
     historical-fundamentals-path: ${PYTHON_HISTORICAL_PATH:scripts/fetch_historical_fundamentals.py}
+    news-path: ${PYTHON_NEWS_PATH:scripts/fetch_news.py}
     sentiment-path: ${PYTHON_SENTIMENT_PATH:scripts/analyze_sentiment.py}
     technical-indicators-path: ${PYTHON_TECHNICAL_PATH:scripts/fetch_technical_indicators.py}
     price-history-path: ${PYTHON_PRICE_HISTORY_PATH:scripts/fetch_price_history.py}

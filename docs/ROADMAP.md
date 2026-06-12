@@ -1,6 +1,16 @@
 # Roadmap — stock-ai-analyzer
 
-> Estado em 2026-06-11, após o commit `5ce8686` (overhaul de precisão/confiabilidade/performance).
+> Estado em 2026-06-12.
+
+## ✅ Concluído (2026-06-12) — Sidecar Python persistente (P0-1)
+
+- `scripts/sidecar_app.py` — FastAPI expondo as funções dos scripts existentes via HTTP local (porta 8001); os scripts continuam funcionando standalone
+- `PythonDataGateway` — ponto único de acesso aos dados Python: prefere o sidecar, cai para spawn de processo (`PythonScriptRunner`) com cooldown de 30s quando o sidecar está fora do ar
+- Todos os consumidores migrados: `StockAnalysisService`, `StockFetchJob`, `HistoricalIndexingJob`, `BacktestService` — nenhum usa `PythonScriptRunner` direto
+- Config em `application.yml`: `python.sidecar.enabled` / `python.sidecar.base-url`
+- `scripts/requirements.txt` criado (yfinance, pandas, fastapi, uvicorn)
+- Subir o sidecar: `cd backend/scripts && python -m uvicorn sidecar_app:app --host 127.0.0.1 --port 8001`
+- Medido: fundamentos em ~1,5s via sidecar quente (vs 3,5s+ com import frio por spawn)
 
 ## ✅ Concluído (commit 5ce8686)
 
@@ -31,7 +41,7 @@
 ## 📋 Backlog priorizado
 
 ### P0 — maior impacto na qualidade da análise
-1. **Sidecar Python persistente (FastAPI)** — cada script paga 2–5s de import do yfinance/pandas; um serviço HTTP local elimina o spawn por chamada. Maior alavanca de latência restante (~27s → meta <10s).
+1. ~~**Sidecar Python persistente (FastAPI)**~~ ✅ concluído em 2026-06-12 (ver seção acima)
 2. **Dados oficiais CVM (ITR/DFP via dados abertos)** como fonte primária de fundamentos — yfinance para B3 tem P/L, P/VPA e DY frequentemente errados/defasados. Manter yfinance como fallback.
 3. **Rótulos COMPRAR/VENDER → linguagem descritiva** *(decisão de produto)* — Res. CVM 20/2021 restringe "recomendações de investimento"; afeta badges do frontend (cores em CLAUDE.md). Decidir antes de abrir para terceiros.
 4. **Benchmarks setoriais dinâmicos** — hoje são faixas estáticas em `SectorBenchmarks`; calcular medianas reais dos pares do setor a partir dos dados já coletados.
@@ -60,5 +70,6 @@
 
 ## Notas para retomada
 - Infra local: `podman machine start` → `podman compose up -d` (containers `stock-ai-postgres` e `stock-ai-redis` já existem).
+- Sidecar Python é opcional em dev — se não estiver no ar, o `PythonDataGateway` cai automaticamente para spawn de processo (mais lento, mas funcional).
 - Ao mudar o prompt, **incrementar `StockAnalysisService.PROMPT_VERSION`** — scores de versões diferentes não são comparáveis.
 - O backtest só terá significado estatístico com ~30+ análises por ticker acumuladas na `score_history` (correlação retorna null com <3 pares).
