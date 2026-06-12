@@ -40,7 +40,7 @@ public class StockAnalysisService {
     private static final String CACHE_PREFIX = "analysis:";
 
     // Incrementar sempre que o prompt mudar — scores de versões diferentes não são comparáveis
-    static final String PROMPT_VERSION = "v2.1";
+    static final String PROMPT_VERSION = "v2.2";
 
     private static final String DISCLAIMER =
             "Esta análise é gerada por IA e não constitui recomendação de investimento. " +

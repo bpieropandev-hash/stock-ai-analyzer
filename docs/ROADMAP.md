@@ -2,6 +2,15 @@
 
 > Estado em 2026-06-12.
 
+## ✅ Concluído (2026-06-12) — Benchmarks setoriais dinâmicos (P0-4)
+
+- `scripts/fetch_sector_benchmarks.py` + endpoint `/sector-benchmarks` no sidecar — medianas reais de P/L, P/VPA, DY, ROE, margem líquida e dívida/PL dos pares do setor (contábeis CVM do cache local + market cap leve via `fast_info`); mediana exige ≥3 amostras por métrica
+- `SectorBenchmarks` reescrito: listas curadas de pares líquidos por setor (5–10 tickers), resultado cacheado no **Redis por 24h**, faixas históricas estáticas mantidas como fallback (gateway/Redis fora do ar, setor OUTROS, ou <3 pares)
+- Tickers que mudaram de código/saíram da bolsa são pulados sem quebrar a mediana (visto no teste: ELET3 e CPLE6)
+- Prompt agora cita medianas reais com data de cálculo → **PROMPT_VERSION v2.1 → v2.2**
+- 4 testes novos em `SectorBenchmarksTest` (formatação, omissão de métrica sem amostra, rejeição com <3 pares); suíte 14/14 verde
+- Medido: FINANCEIRO com 8 pares em ~7s no primeiro cálculo do dia (depois, cache Redis)
+
 ## ✅ Concluído (2026-06-12) — Linguagem descritiva nos rótulos (P0-3)
 
 - Rótulos da análise: COMPRAR/MANTER/AGUARDAR/EVITAR → **ATRATIVO/NEUTRO/CAUTELA/DESFAVORÁVEL** (mesmas faixas de score em `AnalysisParser.deriveRecommendation`); ações de carteira COMPRAR_MAIS/MANTER/VENDER → ATRATIVO/NEUTRO/DESFAVORÁVEL — Res. CVM 20/2021 restringe recomendações imperativas a analistas credenciados
@@ -60,7 +69,7 @@
 1. ~~**Sidecar Python persistente (FastAPI)**~~ ✅ concluído em 2026-06-12 (ver seção acima)
 2. ~~**Dados oficiais CVM (ITR/DFP via dados abertos)**~~ ✅ concluído em 2026-06-12 (ver seção acima)
 3. ~~**Rótulos COMPRAR/VENDER → linguagem descritiva**~~ ✅ concluído em 2026-06-12 (ver seção acima)
-4. **Benchmarks setoriais dinâmicos** — hoje são faixas estáticas em `SectorBenchmarks`; calcular medianas reais dos pares do setor a partir dos dados já coletados.
+4. ~~**Benchmarks setoriais dinâmicos**~~ ✅ concluído em 2026-06-12 (ver seção acima)
 
 ### P1 — precisão por dimensão
 5. **Tratamento específico para bancos** (ITUB4, BBDC4, B3SA3) — debt/equity e margens do yfinance não fazem sentido para financeiras; usar ROE, P/VPA, e injetar nota no prompt para ignorar alavancagem bruta.

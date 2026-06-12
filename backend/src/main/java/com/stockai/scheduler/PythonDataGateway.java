@@ -68,6 +68,9 @@ public class PythonDataGateway {
     @Value("${python.script.historical-fundamentals-path:scripts/fetch_historical_fundamentals.py}")
     private String historicalFundamentalsScriptPath;
 
+    @Value("${python.script.sector-benchmarks-path:scripts/fetch_sector_benchmarks.py}")
+    private String sectorBenchmarksScriptPath;
+
     public PythonDataGateway(PythonScriptRunner scriptRunner) {
         this.scriptRunner = scriptRunner;
         this.http = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
@@ -119,6 +122,12 @@ public class PythonDataGateway {
     public String historicalFundamentals(String ticker) throws Exception {
         return fetch("/historical-fundamentals/" + ticker,
                 Duration.ofSeconds(90), historicalFundamentalsScriptPath, ticker);
+    }
+
+    /** @param tickersCsv pares do setor separados por vírgula (ex.: "PETR4,PRIO3") */
+    public String sectorBenchmarks(String tickersCsv) throws Exception {
+        return fetch("/sector-benchmarks?tickers=" + tickersCsv,
+                Duration.ofSeconds(90), sectorBenchmarksScriptPath, tickersCsv);
     }
 
     // -------------------------------------------------------------------------

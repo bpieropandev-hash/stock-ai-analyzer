@@ -25,6 +25,7 @@ from fetch_historical_fundamentals import fetch_historical
 from fetch_macro import fetch_macro
 from fetch_news import fetch_news
 from fetch_price_history import fetch_price_history
+from fetch_sector_benchmarks import compute_benchmarks
 from fetch_stock import fetch_quotes
 from fetch_technical_indicators import fetch_technical_indicators
 
@@ -85,6 +86,14 @@ def sentiment(texts: list[str]) -> JSONResponse:
         return JSONResponse(analyze(texts))
     except Exception as exc:
         return JSONResponse(_fallback(len(texts), str(exc)[:120]))
+
+
+@app.get("/sector-benchmarks")
+def sector_benchmarks(tickers: str) -> JSONResponse:
+    try:
+        return JSONResponse(compute_benchmarks(tickers.split(",")))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"sector-benchmarks: {exc}")
 
 
 @app.get("/technical/{ticker}")
