@@ -2,6 +2,12 @@
 
 > Estado em 2026-06-12.
 
+## ✅ Concluído (2026-06-12) — Tratamento específico para bancos/financeiras (P1-5)
+
+- `fetch_fundamentals.py`: financeira **sem** conta de "Empréstimos e Financiamentos" no BPP (bancos, seguradoras) tem `totalDebt`/`debtToEquity` suprimidos — o yfinance trata captação/depósitos como dívida (ITUB4 aparecia com "dívida" de R$ 1,15 tri). B3SA3 e afins mantêm a dívida real (debêntures) vinda da CVM
+- Prompt: seção BALANÇO para FINANCEIRO sem dívida exibe "não se aplica" com instrução de avaliar por ROE/P/VPA/inadimplência; instruções setoriais do FINANCEIRO mandam explicitamente NÃO penalizar gestaoRisco por alavancagem bruta e avisam que margens de intermediação não são comparáveis → **PROMPT_VERSION v2.2 → v2.3**
+- Bugfix de carona: o regex do mapa ticker→CNPJ rejeitava raiz com dígito — **B3SA3 caía para yfinance puro**; corrigido para `[A-Z][A-Z0-9]{3}\d{1,2}`
+
 ## ✅ Concluído (2026-06-12) — Benchmarks setoriais dinâmicos (P0-4)
 
 - `scripts/fetch_sector_benchmarks.py` + endpoint `/sector-benchmarks` no sidecar — medianas reais de P/L, P/VPA, DY, ROE, margem líquida e dívida/PL dos pares do setor (contábeis CVM do cache local + market cap leve via `fast_info`); mediana exige ≥3 amostras por métrica
@@ -72,7 +78,7 @@
 4. ~~**Benchmarks setoriais dinâmicos**~~ ✅ concluído em 2026-06-12 (ver seção acima)
 
 ### P1 — precisão por dimensão
-5. **Tratamento específico para bancos** (ITUB4, BBDC4, B3SA3) — debt/equity e margens do yfinance não fazem sentido para financeiras; usar ROE, P/VPA, e injetar nota no prompt para ignorar alavancagem bruta.
+5. ~~**Tratamento específico para bancos**~~ ✅ concluído em 2026-06-12 (ver seção acima)
 6. **Corrigir `SectorClassifier`** — Utilities→ENERGIA, Technology→INDUSTRIA, Consumer Defensive→VAREJO geram instruções setoriais erradas; criar SectorTypes próprios (UTILITIES, TECNOLOGIA, CONSUMO_DEFENSIVO).
 7. **EV/EBITDA, payout ratio, margem EBITDA** no `fetch_fundamentals.py` — o prompt setorial de LOGISTICA pede EBITDA mas o dado nunca é fornecido.
 8. **IBOV/CDI como benchmark relativo** no momentum — "a ação caiu ou o mercado todo caiu?"; adicionar retorno relativo ao IBOV em `fetch_technical_indicators.py`.

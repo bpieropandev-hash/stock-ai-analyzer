@@ -14,7 +14,12 @@ public class SectorPromptConfig {
 
             Map.entry(SectorType.FINANCEIRO,
                     "Selic alta beneficia margens de intermediação. Inadimplência é o principal risco. " +
-                    "Dividendos são estruturais nesse setor — yield abaixo de 5% merece desconto."),
+                    "Dividendos são estruturais nesse setor — yield abaixo de 5% merece desconto. " +
+                    "Para bancos e seguradoras, IGNORE dívida total e dívida/patrimônio: alavancagem é " +
+                    "estrutural do negócio (captação e depósitos não são dívida corporativa) — NÃO penalize " +
+                    "gestaoRisco por alavancagem bruta; avalie por estabilidade do ROE, P/VPA, beta e " +
+                    "sinais de inadimplência nas notícias. As margens sobre receita de intermediação " +
+                    "financeira não são comparáveis às margens de empresas não-financeiras."),
 
             Map.entry(SectorType.VAREJO,
                     "Selic alta é o maior inimigo — comprime consumo e eleva custo da dívida. " +

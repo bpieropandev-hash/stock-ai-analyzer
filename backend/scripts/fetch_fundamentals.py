@@ -147,6 +147,14 @@ def _cvm_overlay(data: dict) -> None:
         if value is not None or field == "priceToEarnings":
             data[field] = value
 
+    # Financeira sem conta de "Empréstimos e Financiamentos" no BPP (bancos,
+    # seguradoras): o yfinance trata captação/depósitos como dívida e infla
+    # totalDebt/debtToEquity com valores sem sentido — suprime em vez de manter.
+    # B3SA3 e afins têm debêntures na conta e seguem com a dívida real da CVM.
+    if cvm["totalDebt"] is None and data.get("sector") == "Financial Services":
+        data["totalDebt"] = None
+        data["debtToEquity"] = None
+
     data["fundamentalsSource"] = "cvm+yfinance"
     data["statementDate"] = cvm["statementDate"]
 

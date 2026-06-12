@@ -40,7 +40,7 @@ public class StockAnalysisService {
     private static final String CACHE_PREFIX = "analysis:";
 
     // Incrementar sempre que o prompt mudar — scores de versões diferentes não são comparáveis
-    static final String PROMPT_VERSION = "v2.2";
+    static final String PROMPT_VERSION = "v2.3";
 
     private static final String DISCLAIMER =
             "Esta análise é gerada por IA e não constitui recomendação de investimento. " +
@@ -160,7 +160,7 @@ public class StockAnalysisService {
         // Fase 2 — dependem da fase 1
         SectorType sector = sectorClassifier.classify(ticker, fundamentals.sector());
         SentimentResult sentiment = fetchSentiment(news);
-        String context = retrieveContext(fundamentals);
+        String context = retrieveContext(fundamentals, sector);
 
         String prompt = buildPrompt(fundamentals, macro, context, sentiment, technical, sector);
 
@@ -306,10 +306,10 @@ public class StockAnalysisService {
     // RAG — recuperação de contexto histórico
     // -------------------------------------------------------------------------
 
-    private String retrieveContext(StockFundamentals fundamentals) {
+    private String retrieveContext(StockFundamentals fundamentals, SectorType sector) {
         try {
             Embedding queryEmbedding = embeddingModel
-                    .embed(TextSegment.from(buildFundamentalsText(fundamentals)))
+                    .embed(TextSegment.from(buildFundamentalsText(fundamentals, sector)))
                     .content();
 
             // Apenas fundamentos históricos — recuperar análises anteriores criaria
@@ -409,7 +409,7 @@ public class StockAnalysisService {
                 """.formatted(
                         today,
                         electionYear ? " (ano de eleições gerais no Brasil — considere risco político onde o contexto setorial indicar)" : "",
-                        buildFundamentalsText(f), macroSection, technicalSection, sentimentSection,
+                        buildFundamentalsText(f, sector), macroSection, technicalSection, sentimentSection,
                         context, sector.name(), sectorSection, benchmarkSection);
     }
 
@@ -462,7 +462,7 @@ public class StockAnalysisService {
                 .formatted(s.score(), s.positiveCount(), s.negativeCount(), s.neutralCount(), s.confidence());
     }
 
-    private String buildFundamentalsText(StockFundamentals f) {
+    private String buildFundamentalsText(StockFundamentals f, SectorType sector) {
         StringBuilder sb = new StringBuilder();
 
         sb.append("Ação: ").append(nvl(f.name())).append(" (").append(f.ticker()).append(")")
@@ -493,13 +493,21 @@ public class StockAnalysisService {
           .append("Cresc. Receita (YoY): ").append(fmt(f.revenueGrowth())).append("%")
           .append(" | Cresc. Lucros: ").append(fmtPct(f.earningsGrowth())).append("%").append("\n");
 
-        sb.append("\nBALANÇO PATRIMONIAL\n")
-          .append("Dívida Total: ").append(fmtBrl(f.totalDebt()))
-          .append(" | Caixa: ").append(fmtBrl(f.totalCash()))
-          .append(" | Receita Total: ").append(fmtBrl(f.totalRevenue())).append("\n")
-          .append("FCO: ").append(fmtBrl(f.operatingCashflow()))
-          .append(" | FCL: ").append(fmtBrl(f.freeCashflow()))
-          .append(" | Dívida/Patrimônio: ").append(fmt(f.debtToEquity())).append("x").append("\n");
+        sb.append("\nBALANÇO PATRIMONIAL\n");
+        if (sector == SectorType.FINANCEIRO && f.debtToEquity() == null) {
+            // Banco/seguradora: captação e depósitos não são dívida corporativa —
+            // exibir alavancagem bruta induziria o LLM a penalizar gestaoRisco
+            sb.append("Dívida Total e Dívida/Patrimônio: não se aplicam (instituição financeira — ")
+              .append("alavancagem é estrutural do negócio; avalie risco por ROE, P/VPA e inadimplência)\n")
+              .append("Receita (intermediação financeira): ").append(fmtBrl(f.totalRevenue())).append("\n");
+        } else {
+            sb.append("Dívida Total: ").append(fmtBrl(f.totalDebt()))
+              .append(" | Caixa: ").append(fmtBrl(f.totalCash()))
+              .append(" | Receita Total: ").append(fmtBrl(f.totalRevenue())).append("\n")
+              .append("FCO: ").append(fmtBrl(f.operatingCashflow()))
+              .append(" | FCL: ").append(fmtBrl(f.freeCashflow()))
+              .append(" | Dívida/Patrimônio: ").append(fmt(f.debtToEquity())).append("x").append("\n");
+        }
 
         sb.append("\nDIVIDENDOS\n")
           .append("Dividend Yield: ").append(fmtPct(f.dividendYield())).append("%")

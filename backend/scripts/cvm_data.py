@@ -164,10 +164,12 @@ def _build_ticker_map() -> dict[str, str]:
             continue
         df = df.dropna(subset=["Codigo_Negociacao"])
         df = df.sort_values("Data_Referencia")  # o último registro de cada ticker prevalece
+        # Raiz de 4 caracteres pode conter dígito (B3SA3, M4RT3?) — só o 1º é
+        # obrigatoriamente letra; sufixo numérico de 1-2 dígitos
         mapping = {
             str(t).strip().upper(): str(c).strip()
             for t, c in zip(df["Codigo_Negociacao"], df["CNPJ_Companhia"])
-            if re.fullmatch(r"[A-Z]{4}\d{1,2}", str(t).strip().upper())
+            if re.fullmatch(r"[A-Z][A-Z0-9]{3}\d{1,2}", str(t).strip().upper())
         }
         if mapping:
             return mapping
