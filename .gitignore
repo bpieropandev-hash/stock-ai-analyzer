@@ -10,6 +10,10 @@ frontend/.angular/
 # Dependências
 frontend/node_modules/
 
+# Python
+__pycache__/
+backend/scripts/.cvm_cache/
+
 # IDEs
 .idea/
 *.iml

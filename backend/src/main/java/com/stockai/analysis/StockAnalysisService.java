@@ -40,7 +40,7 @@ public class StockAnalysisService {
     private static final String CACHE_PREFIX = "analysis:";
 
     // Incrementar sempre que o prompt mudar — scores de versões diferentes não são comparáveis
-    static final String PROMPT_VERSION = "v2.0";
+    static final String PROMPT_VERSION = "v2.1";
 
     private static final String DISCLAIMER =
             "Esta análise é gerada por IA e não constitui recomendação de investimento. " +
@@ -469,6 +469,15 @@ public class StockAnalysisService {
           .append(" | Setor: ").append(nvl(f.sector()))
           .append(" | Segmento: ").append(nvl(f.industry()))
           .append(" | Moeda: ").append(nvl(f.currency())).append("\n");
+
+        if ("cvm+yfinance".equals(f.fundamentalsSource())) {
+            sb.append("Fonte: demonstrativos oficiais CVM (ITR/DFP, balanço de ")
+              .append(nvl(f.statementDate()))
+              .append(", janela LTM) + dados de mercado yfinance\n");
+        } else {
+            sb.append("Fonte: yfinance — números contábeis podem estar defasados; ")
+              .append("trate divergências fortes com ceticismo\n");
+        }
 
         sb.append("\nVALUATION\n")
           .append("P/L: ").append(fmt(f.priceToEarnings()))

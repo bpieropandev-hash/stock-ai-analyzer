@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Backend | Spring Boot 4, Java 26, Maven |
 | Frontend | Angular 21, TypeScript |
 | Banco de dados | PostgreSQL (JPA: alertas, score history, portfolio) + pgvector (embeddings), Redis (cache) |
-| Fonte de dados | yfinance (Python) para cotações e fundamentos B3; APIs abertas do BCB para macro (Selic, IPCA, USD/BRL) e expectativas Focus |
+| Fonte de dados | Dados abertos da CVM (ITR/DFP/FCA) para fundamentos contábeis (LTM); yfinance (Python) para cotações, dados de mercado e fallback; APIs abertas do BCB para macro (Selic, IPCA, USD/BRL) e expectativas Focus |
 | IA | Gemini 2.5 Flash (primário) + Groq qwen3-32b (fallback) via LangChain4j, temperature 0; embeddings nomic-embed-text via Ollama local |
 
 ## Comandos
@@ -46,7 +46,7 @@ npm run build      # build de produção
 ### Fluxo principal
 1. **Acesso a dados Python** centralizado no `PythonDataGateway`: prefere o **sidecar FastAPI** (`scripts/sidecar_app.py`, HTTP local na porta 8001, módulos yfinance/pandas já carregados) e cai para spawn de processo via `PythonScriptRunner` (timeout + leitura concorrente de streams) com cooldown de 30s quando o sidecar está fora do ar. Os scripts continuam funcionando standalone via CLI.
 2. **Job agendado** (Spring `@Scheduled`, a cada 60s) busca cotações B3 via gateway (yfinance, sufixo `.SA`); cada cotação vai para o Redis com TTL curto. O frontend consome via polling REST — **não há WebSocket**.
-3. **Pipeline de IA** (`StockAnalysisService`): coleta fundamentos, macro, notícias e indicadores técnicos **em paralelo** (virtual threads), recupera contexto RAG (apenas `historical_fundamentals` — análises passadas são excluídas para evitar feedback loop), monta o prompt com rubrica de pontuação e benchmarks setoriais, chama Gemini com fallback Groq.
+3. **Pipeline de IA** (`StockAnalysisService`): coleta fundamentos, macro, notícias e indicadores técnicos **em paralelo** (virtual threads), recupera contexto RAG (apenas `historical_fundamentals` — análises passadas são excluídas para evitar feedback loop), monta o prompt com rubrica de pontuação e benchmarks setoriais, chama Gemini com fallback Groq. Fundamentos contábeis vêm dos demonstrativos oficiais da CVM (`scripts/cvm_data.py` — DRE LTM, balanço, DFC; zips cacheados em `scripts/.cvm_cache/`) com yfinance como fallback; a proveniência (`fundamentalsSource`, `statementDate`) entra no prompt.
 4. **Validação**: `AnalysisParser` clampa scores em 0–10, rejeita dimensões ausentes e calcula `scoreGeral` em Java (a aritmética do LLM é descartada). Cada análise registra `modelUsed` e `promptVersion` (constante `StockAnalysisService.PROMPT_VERSION` — incrementar a cada mudança de prompt).
 5. **Persistência**: score history em tabela JPA (`score_history`), alertas em PostgreSQL (Δscore > 1.5), embeddings no pgvector. `BacktestService` cruza scores com retornos realizados 30/90 dias (`GET /api/stocks/{ticker}/backtest`).
 6. **Single-flight**: requisições simultâneas do mesmo ticker compartilham uma análise (lock por ticker); resultado cacheado no Redis por 30 min.

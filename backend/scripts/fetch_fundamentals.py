@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """
-Busca dados fundamentalistas enriquecidos de uma ação B3 via yfinance.
+Busca dados fundamentalistas enriquecidos de uma ação B3.
+
+Fonte primária dos números contábeis: demonstrativos oficiais da CVM
+(ITR/DFP via cvm_data) — o yfinance para B3 tem P/L, P/VPA e DY
+frequentemente errados ou defasados. O yfinance segue como fonte dos dados
+de mercado (preço, market cap, beta, 52s) e fallback integral quando a CVM
+não cobre o ticker ou o cache ainda não baixou.
+
 Recebe o ticker como argumento (ex: PETR4) e retorna JSON no stdout.
 """
 
@@ -9,6 +16,8 @@ import math
 import sys
 
 import yfinance as yf
+
+from cvm_data import fetch_cvm_fundamentals
 
 
 # ---------------------------------------------------------------------------
@@ -92,12 +101,62 @@ def _quarterly_results(stock: yf.Ticker) -> list[dict]:
 # Função principal
 # ---------------------------------------------------------------------------
 
+def _cvm_overlay(data: dict) -> None:
+    """
+    Sobrepõe os campos contábeis com os demonstrativos oficiais da CVM e
+    recalcula os ratios de valuation com o market cap do yfinance. Sobrepõe
+    apenas o que a CVM fornece — campo ausente mantém o valor do yfinance.
+    """
+    try:
+        cvm = fetch_cvm_fundamentals(data["ticker"])
+    except Exception as exc:
+        print(f"Overlay CVM indisponível para {data['ticker']}: {exc}", file=sys.stderr)
+        return
+    if cvm is None:
+        return
+
+    overrides = {
+        "roe": cvm["roe"],
+        "roa": cvm["roa"],
+        "netMargin": cvm["netMargin"],
+        "operatingMargin": cvm["operatingMargin"],
+        "debtToEquity": cvm["debtToEquity"],
+        "totalDebt": _safe_int(cvm["totalDebt"]),
+        "totalCash": _safe_int(cvm["totalCash"]),
+        "totalRevenue": _safe_int(cvm["revenueLtm"]),
+        "earningsGrowth": cvm["earningsGrowth"],
+        # convenção do script: revenueGrowth já em % (demais razões em decimal)
+        "revenueGrowth": (round(cvm["revenueGrowth"] * 100, 4)
+                          if cvm["revenueGrowth"] is not None else None),
+    }
+
+    market_cap = data.get("marketCap")
+    if market_cap:
+        net_income, equity = cvm["netIncomeLtm"], cvm["equity"]
+        dividends = cvm["dividendsPaidLtm"]
+        # P/L negativo não tem leitura — empresa no prejuízo fica sem o múltiplo
+        if net_income is not None:
+            overrides["priceToEarnings"] = (round(market_cap / net_income, 4)
+                                            if net_income > 0 else None)
+        if equity and equity > 0:
+            overrides["priceToBook"] = round(market_cap / equity, 4)
+        if dividends is not None:
+            overrides["dividendYield"] = round(dividends / market_cap, 4)
+
+    for field, value in overrides.items():
+        if value is not None or field == "priceToEarnings":
+            data[field] = value
+
+    data["fundamentalsSource"] = "cvm+yfinance"
+    data["statementDate"] = cvm["statementDate"]
+
+
 def fetch_fundamentals(ticker: str) -> dict:
     symbol = ticker + ".SA"
     stock = yf.Ticker(symbol)
     info = stock.info
 
-    return {
+    data = {
         # Identificação
         "ticker": ticker,
         "symbol": symbol,
@@ -148,7 +207,14 @@ def fetch_fundamentals(ticker: str) -> dict:
         "fiftyTwoWeekHigh": _safe_float(info.get("fiftyTwoWeekHigh")),
         "fiftyTwoWeekLow": _safe_float(info.get("fiftyTwoWeekLow")),
         "averageVolume": _safe_int(info.get("averageVolume")),
+
+        # Proveniência — sobrescrita pelo overlay CVM quando disponível
+        "fundamentalsSource": "yfinance",
+        "statementDate": None,
     }
+
+    _cvm_overlay(data)
+    return data
 
 
 if __name__ == "__main__":

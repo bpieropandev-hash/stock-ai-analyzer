@@ -2,6 +2,15 @@
 
 > Estado em 2026-06-12.
 
+## ✅ Concluído (2026-06-12) — Dados oficiais CVM como fonte primária de fundamentos (P0-2)
+
+- `scripts/cvm_data.py` — fundamentos contábeis direto dos demonstrativos da CVM (dados abertos): DRE em janela **LTM** (YTD do ITR + exercício DFP − YTD anterior), balanço mais recente, dividendos+JCP pagos via DFC; consolidado com fallback individual; lucro atribuído aos sócios da controladora (3.11.01) preferido sobre o consolidado
+- Mapa ticker→CNPJ via FCA (`valor_mobiliario`); zips anuais cacheados em `scripts/.cvm_cache/` (ano corrente renova a cada 24h; cooldown de 10 min após falha de download)
+- `fetch_fundamentals.py` — overlay CVM sobre o yfinance: ROE, ROA, margens, dívida/PL, receita e crescimentos vêm da CVM; P/L, P/VPA e DY recalculados com market cap do yfinance; campo ausente na CVM mantém o valor yfinance; ticker fora do cadastro (ETFs, BDRs) cai integralmente para yfinance
+- Proveniência exposta: `fundamentalsSource` ("cvm+yfinance" | "yfinance") e `statementDate` no JSON, no record `StockFundamentals` e no prompt (**PROMPT_VERSION v2.0 → v2.1**)
+- Sidecar pré-baixa os datasets no startup (thread de fundo via lifespan) e mantém DataFrames em memória
+- Validação cruzada: lucro LTM da VALE3 calculado da CVM = `netIncomeToCommon` do yfinance ao milhar (15,603 bi); PETR4/ITUB4/WEGE3/MGLU3 com ratios plausíveis; bancos ficam sem dívida bruta (correto — alavancagem bancária é o item P1-5)
+
 ## ✅ Concluído (2026-06-12) — Sidecar Python persistente (P0-1)
 
 - `scripts/sidecar_app.py` — FastAPI expondo as funções dos scripts existentes via HTTP local (porta 8001); os scripts continuam funcionando standalone
@@ -42,7 +51,7 @@
 
 ### P0 — maior impacto na qualidade da análise
 1. ~~**Sidecar Python persistente (FastAPI)**~~ ✅ concluído em 2026-06-12 (ver seção acima)
-2. **Dados oficiais CVM (ITR/DFP via dados abertos)** como fonte primária de fundamentos — yfinance para B3 tem P/L, P/VPA e DY frequentemente errados/defasados. Manter yfinance como fallback.
+2. ~~**Dados oficiais CVM (ITR/DFP via dados abertos)**~~ ✅ concluído em 2026-06-12 (ver seção acima)
 3. **Rótulos COMPRAR/VENDER → linguagem descritiva** *(decisão de produto)* — Res. CVM 20/2021 restringe "recomendações de investimento"; afeta badges do frontend (cores em CLAUDE.md). Decidir antes de abrir para terceiros.
 4. **Benchmarks setoriais dinâmicos** — hoje são faixas estáticas em `SectorBenchmarks`; calcular medianas reais dos pares do setor a partir dos dados já coletados.
 

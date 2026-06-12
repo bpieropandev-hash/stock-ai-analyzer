@@ -6,8 +6,12 @@ import java.util.List;
 /**
  * Dados fundamentalistas enriquecidos retornados pelo script fetch_fundamentals.py.
  *
- * Convenção yfinance: campos de percentual (roe, roa, margens, earningsGrowth,
- * dividendYield) chegam como decimal — ex: 0.25 representa 25%.
+ * Fonte primária dos números contábeis: demonstrativos oficiais da CVM (ITR/DFP),
+ * com yfinance para dados de mercado e como fallback integral —
+ * {@code fundamentalsSource} indica qual caminho foi usado.
+ *
+ * Convenção de unidades (igual nas duas fontes): campos de percentual (roe, roa,
+ * margens, earningsGrowth, dividendYield) chegam como decimal — ex: 0.25 = 25%.
  * Exceção: revenueGrowth é calculado pelo script e já vem em %.
  */
 public record StockFundamentals(
@@ -18,6 +22,10 @@ public record StockFundamentals(
         String sector,
         String industry,
         String currency,
+
+        // Proveniência — "cvm+yfinance" ou "yfinance"; data do balanço mais recente usado
+        String fundamentalsSource,
+        String statementDate,
 
         // Valuation
         BigDecimal priceToEarnings,

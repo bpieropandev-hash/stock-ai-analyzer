@@ -12,9 +12,13 @@ Execução:
     python -m uvicorn sidecar_app:app --host 127.0.0.1 --port 8001
 """
 
+import threading
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
+import cvm_data
 from analyze_sentiment import analyze, _fallback
 from fetch_fundamentals import fetch_fundamentals
 from fetch_historical_fundamentals import fetch_historical
@@ -24,7 +28,16 @@ from fetch_price_history import fetch_price_history
 from fetch_stock import fetch_quotes
 from fetch_technical_indicators import fetch_technical_indicators
 
-app = FastAPI(title="stock-ai-analyzer sidecar", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def _lifespan(_: FastAPI):
+    # Datasets da CVM são dezenas de MB — baixa em background para não atrasar
+    # o boot; até concluir, fundamentals responde só com yfinance
+    threading.Thread(target=cvm_data.warm_cache, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="stock-ai-analyzer sidecar", docs_url=None, redoc_url=None,
+              lifespan=_lifespan)
 
 
 def _base_ticker(ticker: str) -> str:
