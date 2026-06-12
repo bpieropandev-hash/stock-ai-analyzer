@@ -91,13 +91,13 @@ class AnalysisParserTest {
 
     @Test
     void deriveRecommendationCobreTodasAsFaixas() {
-        assertEquals("COMPRAR", parser.deriveRecommendation(7.6));
-        assertEquals("MANTER", parser.deriveRecommendation(7.5));
-        assertEquals("MANTER", parser.deriveRecommendation(6.0));
-        assertEquals("AGUARDAR", parser.deriveRecommendation(5.9));
-        assertEquals("AGUARDAR", parser.deriveRecommendation(4.5));
-        assertEquals("EVITAR", parser.deriveRecommendation(4.4));
-        assertEquals("EVITAR", parser.deriveRecommendation(0.0));
+        assertEquals("ATRATIVO", parser.deriveRecommendation(7.6));
+        assertEquals("NEUTRO", parser.deriveRecommendation(7.5));
+        assertEquals("NEUTRO", parser.deriveRecommendation(6.0));
+        assertEquals("CAUTELA", parser.deriveRecommendation(5.9));
+        assertEquals("CAUTELA", parser.deriveRecommendation(4.5));
+        assertEquals("DESFAVORÁVEL", parser.deriveRecommendation(4.4));
+        assertEquals("DESFAVORÁVEL", parser.deriveRecommendation(0.0));
     }
 
     @Test

@@ -71,12 +71,6 @@ import { CommonModule } from '@angular/common';
       border-color: rgba(255, 59, 92, 0.3);
     }
 
-    .sell {
-      background: rgba(255, 59, 92, 0.12);
-      color: #ff3b5c;
-      border-color: rgba(255, 59, 92, 0.3);
-    }
-
     .neutral {
       background: rgba(98, 122, 143, 0.08);
       color: #627a8f;
@@ -90,24 +84,34 @@ export class RecommendationBadge {
 
   get badgeClass(): string {
     const map: Record<string, string> = {
+      'ATRATIVO':     'buy',
+      'NEUTRO':       'hold',
+      'CAUTELA':      'wait',
+      'DESFAVORÁVEL': 'avoid',
+      // Rótulos antigos — análises ainda cacheadas no Redis (TTL 30 min)
       'COMPRAR':      'buy',
       'COMPRAR_MAIS': 'buy',
       'MANTER':       'hold',
       'AGUARDAR':     'wait',
       'EVITAR':       'avoid',
-      'VENDER':       'sell',
+      'VENDER':       'avoid',
     };
     return map[this.recommendation] ?? 'neutral';
   }
 
   get label(): string {
     const map: Record<string, string> = {
-      'COMPRAR':      'Comprar',
-      'COMPRAR_MAIS': 'Comprar Mais',
-      'MANTER':       'Manter',
-      'AGUARDAR':     'Aguardar',
-      'EVITAR':       'Evitar',
-      'VENDER':       'Vender',
+      'ATRATIVO':     'Atrativo',
+      'NEUTRO':       'Neutro',
+      'CAUTELA':      'Cautela',
+      'DESFAVORÁVEL': 'Desfavorável',
+      // Rótulos antigos exibem a linguagem descritiva nova (Res. CVM 20/2021)
+      'COMPRAR':      'Atrativo',
+      'COMPRAR_MAIS': 'Atrativo',
+      'MANTER':       'Neutro',
+      'AGUARDAR':     'Cautela',
+      'EVITAR':       'Desfavorável',
+      'VENDER':       'Desfavorável',
     };
     return map[this.recommendation] ?? this.recommendation;
   }

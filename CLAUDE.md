@@ -130,7 +130,7 @@ O score é composto por 6 dimensões independentes, cada uma com peso e explica�
 - **Score gauge**: SVG circle com `stroke-dasharray` animado, número centralizado em Syne bold
 - **Score bar**: `div` com `transition width 0.8s ease`, cor baseada no valor (vermelho `<4`, amarelo `4–6.5`, verde `>6.5`)
 - **Stock card no dashboard**: `height 120px`, mostrar ticker + preço + variação + setor
-- **Recommendation badge**: cores fixas — `COMPRAR=#00d4aa`, `MANTER=#3b82f6`, `AGUARDAR=#f59e0b`, `EVITAR=#ef4444`
+- **Recommendation badge**: linguagem descritiva (Res. CVM 20/2021 — nunca COMPRAR/VENDER); cores fixas — `ATRATIVO=#00d4aa`, `NEUTRO=#3b82f6`, `CAUTELA=#f59e0b`, `DESFAVORÁVEL=#ef4444`
 
 ### Processo obrigatório para mudanças visuais
 1. Ler este CLAUDE.md antes de qualquer mudança de CSS

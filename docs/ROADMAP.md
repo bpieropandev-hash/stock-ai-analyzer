@@ -2,6 +2,13 @@
 
 > Estado em 2026-06-12.
 
+## ✅ Concluído (2026-06-12) — Linguagem descritiva nos rótulos (P0-3)
+
+- Rótulos da análise: COMPRAR/MANTER/AGUARDAR/EVITAR → **ATRATIVO/NEUTRO/CAUTELA/DESFAVORÁVEL** (mesmas faixas de score em `AnalysisParser.deriveRecommendation`); ações de carteira COMPRAR_MAIS/MANTER/VENDER → ATRATIVO/NEUTRO/DESFAVORÁVEL — Res. CVM 20/2021 restringe recomendações imperativas a analistas credenciados
+- Elegibilidade na alocação (`PortfolioService`/`PortfolioSimulator`) agora compara **score ≥ 6.0** (piso do NEUTRO) em vez de rótulo — imune a análises com grafia antiga no cache Redis
+- Frontend: badge e portfolio mapeiam os rótulos novos com as mesmas cores (`ATRATIVO=#00d4aa`, `NEUTRO=#3b82f6`, `CAUTELA=#f59e0b`, `DESFAVORÁVEL=#ef4444`); rótulos antigos vindos do cache (TTL 30 min) exibem o texto novo — esses mapeamentos legados podem ser removidos depois
+- `PROMPT_VERSION` inalterado — o rótulo é derivado em Java a partir do score; o prompt não muda
+
 ## ✅ Concluído (2026-06-12) — Dados oficiais CVM como fonte primária de fundamentos (P0-2)
 
 - `scripts/cvm_data.py` — fundamentos contábeis direto dos demonstrativos da CVM (dados abertos): DRE em janela **LTM** (YTD do ITR + exercício DFP − YTD anterior), balanço mais recente, dividendos+JCP pagos via DFC; consolidado com fallback individual; lucro atribuído aos sócios da controladora (3.11.01) preferido sobre o consolidado
@@ -52,7 +59,7 @@
 ### P0 — maior impacto na qualidade da análise
 1. ~~**Sidecar Python persistente (FastAPI)**~~ ✅ concluído em 2026-06-12 (ver seção acima)
 2. ~~**Dados oficiais CVM (ITR/DFP via dados abertos)**~~ ✅ concluído em 2026-06-12 (ver seção acima)
-3. **Rótulos COMPRAR/VENDER → linguagem descritiva** *(decisão de produto)* — Res. CVM 20/2021 restringe "recomendações de investimento"; afeta badges do frontend (cores em CLAUDE.md). Decidir antes de abrir para terceiros.
+3. ~~**Rótulos COMPRAR/VENDER → linguagem descritiva**~~ ✅ concluído em 2026-06-12 (ver seção acima)
 4. **Benchmarks setoriais dinâmicos** — hoje são faixas estáticas em `SectorBenchmarks`; calcular medianas reais dos pares do setor a partir dos dados já coletados.
 
 ### P1 — precisão por dimensão

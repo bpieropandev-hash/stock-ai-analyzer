@@ -93,7 +93,8 @@ public class PortfolioService {
             try {
                 AnalysisResponse analysis = analysisService.analyze(item.getTicker());
                 double score = analysis.analysis().scoreGeral();
-                String action = score >= 7.0 ? "COMPRAR_MAIS" : score >= 5.0 ? "MANTER" : "VENDER";
+                // Linguagem descritiva (Res. CVM 20/2021) — sem verbos de ordem
+                String action = score >= 7.0 ? "ATRATIVO" : score >= 5.0 ? "NEUTRO" : "DESFAVORÁVEL";
                 result.add(new EvaluationItem(
                         item.getTicker(), item.getQuantity(), item.getAveragePrice(),
                         score, action, analysis.simpleSummary()
@@ -119,8 +120,9 @@ public class PortfolioService {
         for (PortfolioItem item : items) {
             try {
                 AnalysisResponse analysis = analysisService.analyze(item.getTicker());
-                String rec = analysis.recommendation();
-                if ("COMPRAR".equals(rec) || "MANTER".equals(rec)) {
+                // Elegibilidade por score (piso do NEUTRO) — não compara rótulo, que
+                // pode estar na grafia antiga em análises ainda cacheadas no Redis
+                if (analysis.analysis().scoreGeral() >= 6.0) {
                     eligible.add(new ItemWithAnalysis(item, analysis));
                     totalScore += analysis.analysis().scoreGeral();
                 } else {

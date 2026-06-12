@@ -564,12 +564,20 @@ export class PortfolioPage implements OnInit {
   scoreColor(s: number): string { return s >= 6.5 ? '#00d4aa' : s >= 4 ? '#f59e0b' : '#ef4444'; }
 
   evalClass(action: string): string {
-    const map: Record<string, string> = { 'COMPRAR_MAIS': 'buy-more', 'MANTER': 'hold', 'VENDER': 'sell' };
+    const map: Record<string, string> = {
+      'ATRATIVO': 'buy-more', 'NEUTRO': 'hold', 'DESFAVORÁVEL': 'sell',
+      // Rótulos antigos — análises ainda cacheadas no Redis (TTL 30 min)
+      'COMPRAR_MAIS': 'buy-more', 'MANTER': 'hold', 'VENDER': 'sell',
+    };
     return map[action] ?? '';
   }
 
   formatAction(action: string): string {
-    const map: Record<string, string> = { 'COMPRAR_MAIS': '▲ Comprar Mais', 'MANTER': '= Manter', 'VENDER': '▼ Vender' };
+    const map: Record<string, string> = {
+      'ATRATIVO': '▲ Atrativo', 'NEUTRO': '= Neutro', 'DESFAVORÁVEL': '▼ Desfavorável',
+      // Rótulos antigos exibem a linguagem descritiva nova (Res. CVM 20/2021)
+      'COMPRAR_MAIS': '▲ Atrativo', 'MANTER': '= Neutro', 'VENDER': '▼ Desfavorável',
+    };
     return map[action] ?? action;
   }
   getScore(item: any): number {

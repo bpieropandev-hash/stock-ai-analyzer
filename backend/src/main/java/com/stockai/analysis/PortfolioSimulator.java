@@ -34,8 +34,9 @@ public class PortfolioSimulator {
 
         for (String ticker : tickers) {
             AnalysisResponse response = getOrAnalyze(ticker);
-            String rec = response.recommendation();
-            if ("COMPRAR".equals(rec) || "MANTER".equals(rec)) {
+            // Elegibilidade por score (piso do NEUTRO) — não compara rótulo, que
+            // pode estar na grafia antiga em análises ainda cacheadas no Redis
+            if (response.analysis().scoreGeral() >= 6.0) {
                 eligible.add(response);
             } else {
                 excluded.add(ticker.toUpperCase());

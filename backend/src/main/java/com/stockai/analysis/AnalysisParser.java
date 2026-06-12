@@ -59,11 +59,15 @@ public class AnalysisParser {
         return Math.round(sum / dimensions.length * 10.0) / 10.0;
     }
 
+    /**
+     * Linguagem descritiva, não imperativa — a Res. CVM 20/2021 restringe
+     * "recomendações de investimento" (COMPRAR/VENDER) a analistas credenciados.
+     */
     public String deriveRecommendation(double score) {
-        if (score > 7.5)  return "COMPRAR";
-        if (score >= 6.0) return "MANTER";
-        if (score >= 4.5) return "AGUARDAR";
-        return "EVITAR";
+        if (score > 7.5)  return "ATRATIVO";
+        if (score >= 6.0) return "NEUTRO";
+        if (score >= 4.5) return "CAUTELA";
+        return "DESFAVORÁVEL";
     }
 
     /** Remove blocos markdown que alguns modelos inserem ao redor do JSON. */
