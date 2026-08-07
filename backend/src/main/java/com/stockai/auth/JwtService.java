@@ -14,7 +14,9 @@ import java.util.Date;
 @Service
 public class JwtService {
 
-    private static final long TTL_MS = 7L * 24 * 60 * 60 * 1000;
+    // Sem refresh token ainda — TTL curto reduz a janela de exposição de um token vazado.
+    // Era 7 dias; 24h é o teto até existir refresh/revogação de verdade (ver anti-patterns.md).
+    private static final long TTL_MS = 24L * 60 * 60 * 1000;
 
     @Value("${jwt.secret}")
     private String secret;
