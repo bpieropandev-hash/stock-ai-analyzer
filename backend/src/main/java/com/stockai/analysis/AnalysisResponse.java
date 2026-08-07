@@ -9,5 +9,6 @@ public record AnalysisResponse(
         // Auditoria — permite explicar por que um score mudou entre análises
         String modelUsed,
         String promptVersion,
-        ScoreConfidence confidence
+        ScoreConfidence confidence,
+        ScoreChangeExplanation scoreChange
 ) {}

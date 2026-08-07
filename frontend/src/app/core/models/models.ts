@@ -30,6 +30,23 @@ export interface ScoreConfidence {
   sectorBenchmarkDynamic: boolean;
 }
 
+export interface DimensionChange {
+  label: string;
+  previousScore: number;
+  currentScore: number;
+  delta: number;
+  explicacao: string;
+}
+
+export interface ScoreChangeExplanation {
+  previousAnalysisDate: string;
+  previousScoreGeral: number;
+  currentScoreGeral: number;
+  delta: number;
+  dimensions: DimensionChange[];
+  topMover: DimensionChange;
+}
+
 export interface AnalysisResponse {
   ticker: string;
   analysis: ScoreDetails;
@@ -39,6 +56,7 @@ export interface AnalysisResponse {
   modelUsed?: string;
   promptVersion?: string;
   confidence?: ScoreConfidence;
+  scoreChange?: ScoreChangeExplanation | null;
   disclaimer?: string;
 }
 

@@ -191,6 +191,12 @@ public class StockAnalysisService {
 
         StockAnalysis analysis = parsed.analysis();
         indexAnalysis(analysis, fundamentals);
+
+        // Precisa vir ANTES de saveScore — senão a análise atual já estaria no histórico
+        // e "anterior" seria ela mesma.
+        List<ScoreHistoryEntity> priorHistory = scoreHistoryService.getFullHistory(ticker);
+        ScoreHistoryEntity previousScore = priorHistory.isEmpty() ? null : priorHistory.getLast();
+
         ScoreHistoryEntity savedScore = scoreHistoryService.saveScore(analysis, modelUsed, PROMPT_VERSION);
         if (savedScore != null) {
             analysisAuditService.save(savedScore, prompt, rawResponse, analysis, parsed.reasoning());
@@ -199,6 +205,9 @@ public class StockAnalysisService {
 
         ScoreConfidence confidence = ScoreConfidenceCalculator.calculate(
                 fundamentals, sentiment, technical, benchmarkInfo.dynamic());
+        ScoreChangeExplanation scoreChange = previousScore != null
+                ? ScoreChangeCalculator.compute(previousScore, analysis)
+                : null;
 
         AnalysisResponse response = new AnalysisResponse(
                 analysis,
@@ -208,7 +217,8 @@ public class StockAnalysisService {
                 DISCLAIMER,
                 modelUsed,
                 PROMPT_VERSION,
-                confidence
+                confidence,
+                scoreChange
         );
 
         try {

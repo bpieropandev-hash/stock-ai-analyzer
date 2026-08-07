@@ -2,6 +2,18 @@
 
 > Estado em 2026-08-07.
 
+## ✅ Concluído (2026-08-07) — Explicação de mudança de score (Sprint 3, item 3)
+
+`ScoreChangeExplanation`/`ScoreChangeCalculator` — compara a análise atual com o registro anterior em `score_history` do mesmo ativo (buscado antes de `saveScore`, senão "anterior" seria a própria análise atual), aponta a dimensão de maior `|delta|` e reusa a `explicacao` que o LLM já dá pra ela. Nenhum dado novo coletado.
+- Diferente de `StockAlert`/`ScoreAlertService` (só dispara acima de threshold 1.5, sem explicar o porquê) — isso mostra a comparação sempre que existe análise anterior, com o texto de explicação junto.
+- `null` na primeira análise de um ticker (sem histórico pra comparar) — frontend simplesmente não mostra o card, sem estado de erro.
+- Frontend: card compacto entre o resumo e as dimensões, score anterior→atual com seta colorida + texto da dimensão que mais mudou.
+- Fora de escopo, deliberado: isso não é "timeline da empresa" — não há gráfico histórico nem linha do tempo, só a comparação com a análise imediatamente anterior. Timeline de verdade continua bloqueada por P2-15 (gap de dado, calendário de eventos corporativos).
+- Verificado: `mvn clean compile`/testes 14/14, `ng build --configuration production` limpo. Mesma limitação de verificação visual das fases anteriores (sem credenciais de LLM válidas pra gerar 2 análises reais em sequência).
+- Ver `decisions.md` para o desenho completo.
+
+**Sprint 3 completo**: backtest visual, score confidence, explicação de mudança de score. Timeline da empresa segue bloqueada (P2-15, gap de dado real — não é item que se resolve com trabalho de frontend).
+
 ## ✅ Concluído (2026-08-07) — Score Confidence + backtest visual (P3-16, Sprint 3)
 
 **Score Confidence** (`ScoreConfidence`/`ScoreConfidenceCalculator`, novo) — meta-score 0-10 de qualidade do dado, não de qualidade da empresa. Agrega 4 sinais já existentes no sistema (nenhum dado novo coletado):

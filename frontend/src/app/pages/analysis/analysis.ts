@@ -5,7 +5,7 @@ import { Nav } from '../../shared/components/nav/nav';
 import { RecommendationBadge } from '../../shared/components/recommendation-badge/recommendation-badge';
 import { TickerSelect } from '../../shared/components/ticker-select/ticker-select';
 import { StockService } from '../../core/services/stock.service';
-import { AnalysisResponse, BacktestResult, StockQuote } from '../../core/models/models';
+import { AnalysisResponse, BacktestResult, ScoreChangeExplanation, StockQuote } from '../../core/models/models';
 
 const R    = 90;
 const CIRC = 2 * Math.PI * R;
@@ -171,6 +171,20 @@ const CIRC = 2 * Math.PI * R;
                 </div>
                 <p class="summary-body">{{ r.simpleSummary }}</p>
               </div>
+
+              @if (r.scoreChange; as sc) {
+                <div class="change-card">
+                  <div class="summary-hd">
+                    <span class="summary-dot" [style.background]="sc.delta >= 0 ? '#00d4aa' : '#ef4444'"></span>
+                    <span class="summary-label">Desde {{ sc.previousAnalysisDate }}</span>
+                  </div>
+                  <div class="change-delta" [style.color]="sc.delta >= 0 ? '#00d4aa' : '#ef4444'">
+                    {{ sc.previousScoreGeral | number:'1.1-1' }} → {{ sc.currentScoreGeral | number:'1.1-1' }}
+                    <span class="change-arrow">{{ sc.delta >= 0 ? '▲' : '▼' }} {{ fmtDelta(sc.delta) }}</span>
+                  </div>
+                  <p class="change-mover"><strong>{{ sc.topMover.label }}</strong> {{ fmtDelta(sc.topMover.delta) }} — {{ sc.topMover.explicacao }}</p>
+                </div>
+              }
 
             </div>
 
@@ -484,6 +498,12 @@ const CIRC = 2 * Math.PI * R;
     .summary-label { font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
     .summary-body { font-size: 13px; color: var(--text-secondary); line-height: 1.75; }
 
+    /* ── Score change card ── */
+    .change-card { background: var(--surf); border: 1px solid var(--brd); border-radius: 8px; padding: 18px 20px; box-shadow: 0 2px 24px rgba(0,0,0,0.5); }
+    .change-delta { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+    .change-arrow { font-size: 12px; }
+    .change-mover { font-size: 12px; color: var(--text-secondary); line-height: 1.65; strong { color: var(--text-primary); } }
+
     /* ── Dimensions card ── */
     .dims-card {
       background: var(--surf);
@@ -644,6 +664,10 @@ export class AnalysisPage implements OnInit {
 
   fmtCorr(v: number | null): string {
     return v === null ? '—' : v.toFixed(2);
+  }
+
+  fmtDelta(v: number): string {
+    return (v >= 0 ? '+' : '') + v.toFixed(1);
   }
 
   buildDims(r: AnalysisResponse) {

@@ -79,6 +79,7 @@ Framework: SCSS puro com variáveis CSS. **Sem Tailwind, sem Bootstrap.**
 - Recommendation badge: linguagem descritiva (Res. CVM 20/2021 — nunca COMPRAR/VENDER); cores fixas `ATRATIVO=#00d4aa`, `NEUTRO=#3b82f6`, `CAUTELA=#f59e0b`, `DESFAVORÁVEL=#ef4444`.
 - Confidence badge (desde 2026-08-07, `analysis.ts`): mesmo esquema de cor de `barColor`/`ringColor` (`≥7` verde, `≥4` amarelo, resto vermelho), breakdown no `title` nativo (sem tooltip customizado).
 - Backtest section (desde 2026-08-07, `analysis.ts`): reusa barra de score (mesmo padrão de `dim-track`/`dim-fill`) por linha, sem lib de gráfico — hand-rolled SVG/CSS como o resto da página.
+- Change card (desde 2026-08-07, `analysis.ts`): mesmo padrão visual de `summary-card`, só aparece quando `AnalysisResponse.scoreChange` não é `null` (sem análise anterior, sem card).
 
 ### Processo obrigatório para mudança visual
 1. Ler este arquivo antes de qualquer CSS.
