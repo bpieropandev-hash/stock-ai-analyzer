@@ -24,6 +24,13 @@
 
 - **AssertJ** (`org.assertj.core.api.Assertions.assertThat`), não `org.junit.jupiter.api.Assertions` — desde 2026-08-07. Já vem transitivo via `spring-boot-starter-test` (`assertj-core`), sem mudança de `pom.xml`. `assertThatThrownBy(...).isInstanceOf(...)` no lugar de `assertThrows`. Testes antigos (`AnalysisParserTest`, `SectorBenchmarksTest`) já migrados — usar como referência de estilo.
 
+## Análise estática (desde 2026-08-07)
+
+- **Error Prone** ativo em todo `mvn compile`, modo **WARN** (`-XepAllErrorsAsWarnings`) — nunca falha o build. `error_prone_core:2.50.0` (única versão que entende os internals do javac do Java 26 — 2.39.0 e anteriores dão `ClassNotFoundException` em `com.sun.tools.javac.code.Flags$Flag`). Flags `--add-exports`/`--add-opens` para os internals do compiler vivem em `backend/.mvn/jvm.config`, **não** em `compilerArgs` do `maven-compiler-plugin` — `--add-opens` não tem nenhum efeito ali, precisa estar no lançamento da própria JVM que roda o processador de anotação (a do Maven, já que `fork=false`).
+- **NullAway — NÃO incluído, bloqueio real verificado**: `nullaway:0.12.7` quebra contra `error_prone_core:2.50.0` (`ClassNotFoundException: com.google.errorprone.predicates.type.DescendantOf` — API interna do Error Prone mudou depois do release do NullAway). Não existe hoje uma combinação de versões que funcione com Java 26. Revisitar quando o NullAway lançar uma versão compatível com Error Prone 2.5x+.
+- **SpotBugs — declarado no `pom.xml` mas inerte, bloqueio real verificado**: `spotbugs-maven-plugin:4.9.3.0` usa uma versão do ASM que não lê bytecode Java 26 (`IllegalArgumentException: Unsupported class file major version 70`). Sem `<executions>` vinculado — não roda no build padrão. Revisitar quando uma versão com ASM atualizado sair; testar via `mvn compile com.github.spotbugs:spotbugs-maven-plugin:4.9.3.0:check` antes de reativar.
+- Nenhum desses achados foi promovido pra travar o build (`ERROR`) — codebase nunca teve disciplina de análise estática antes, então o primeiro passo é só visibilidade. Promover pra `ERROR` é decisão separada, deliberada, não silenciosa.
+
 ## Build
 
 - Sempre `mvn clean compile` após alteração estrutural — zero warning antes de reportar conclusão.

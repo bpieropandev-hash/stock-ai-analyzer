@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: "maven"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      langchain4j:
+        # Ciclos de release independentes (ver docs/ai/backend.md) — nunca
+        # unificar numa PR só sem checar cada versão individualmente.
+        patterns:
+          - "dev.langchain4j:*"
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Sem entrada "github-actions" — projeto não tem CI/CD ainda (ver anti-patterns.md).
+  # Adicionar quando/se workflows existirem, não antes.

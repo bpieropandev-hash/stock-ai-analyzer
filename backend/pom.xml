@@ -118,6 +118,51 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+			<plugin>
+				<!-- Error Prone em modo relatório (WARN) — nunca rodado em ERROR ainda,
+				     pra não quebrar o build numa codebase sem disciplina de null-safety
+				     até agora. Ver coding-standards.md antes de promover pra ERROR.
+				     NullAway 0.12.7 NÃO incluído: incompatibilidade real verificada —
+				     precisa de error_prone_core recente o bastante pra entender os
+				     internals do javac do Java 26 (2.39.0 não entende, ClassNotFoundException
+				     em com.sun.tools.javac.code.Flags$Flag), mas nessa versão recente
+				     (2.50.0) o NullAway quebra (ClassNotFoundException em
+				     com.google.errorprone.predicates.type.DescendantOf — API interna do
+				     Error Prone mudou depois do release do NullAway 0.12.7). Sem versão
+				     de NullAway que funcione com Java 26 nesse momento. Revisitar quando
+				     o NullAway lançar uma versão compatível com Error Prone 2.5x+. -->
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<!-- fork=false (padrão) — o processador de anotação roda na mesma JVM
+					     do Maven, que precisa dos add-exports/add-opens no PRÓPRIO
+					     lançamento (.mvn/jvm.config), não em compilerArgs (isso só afeta
+					     javac, e add-opens não tem efeito nenhum em javac). -->
+					<compilerArgs>
+						<arg>-XDcompilePolicy=simple</arg>
+						<arg>--should-stop=ifError=FLOW</arg>
+						<arg>-Xplugin:ErrorProne -XepAllErrorsAsWarnings</arg>
+					</compilerArgs>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>com.google.errorprone</groupId>
+							<artifactId>error_prone_core</artifactId>
+							<version>2.50.0</version>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+			<plugin>
+				<!-- BLOQUEADO — verificado, não é erro de config: o ASM interno do
+				     SpotBugs 4.9.3.0 não lê bytecode do Java 26 ainda
+				     (IllegalArgumentException: Unsupported class file major version 70).
+				     Plugin fica declarado mas inerte (sem <executions>, não roda no
+				     build padrão) pra reativar assim que uma versão compatível sair.
+				     Ver decisions.md. -->
+				<groupId>com.github.spotbugs</groupId>
+				<artifactId>spotbugs-maven-plugin</artifactId>
+				<version>4.9.3.0</version>
+			</plugin>
 		</plugins>
 	</build>
 

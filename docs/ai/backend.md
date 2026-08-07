@@ -30,6 +30,10 @@ mvn clean compile               # rodar após qualquer alteração estrutural
 | io.jsonwebtoken:jjwt-api/impl/jackson | 0.12.6 | JWT |
 | spring-boot-starter-flyway | (gerenciada pelo parent 4.0.6) | migração de schema — starter próprio do Spring Boot 4, sem ele Flyway não roda automaticamente mesmo com `flyway-core` no classpath |
 | org.flywaydb:flyway-database-postgresql | 11.14.1 (gerenciada pelo parent, resolvida via `mvn dependency:tree`) | suporte a Postgres — obrigatório desde Flyway 10, `flyway-core` sozinho não basta |
+| com.google.errorprone:error_prone_core | 2.50.0 (annotation processor, não dependency normal) | análise estática em modo WARN — ver `coding-standards.md`. Versão fixa: é a única que entende os internals do javac do Java 26 |
+| com.github.spotbugs:spotbugs-maven-plugin | 4.9.3.0 | declarado mas **inerte** — ASM interno não lê bytecode Java 26, ver `coding-standards.md`/`decisions.md` |
+
+`backend/.mvn/jvm.config` — `--add-exports`/`--add-opens` pros internals do javac, exigidos pelo Error Prone. Precisa estar aí (JVM do próprio Maven), não em `compilerArgs` — `--add-opens` não tem efeito nenhum passado pro javac.
 
 ## Regras Maven obrigatórias
 
