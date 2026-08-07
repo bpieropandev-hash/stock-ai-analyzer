@@ -8,5 +8,5 @@ import java.util.UUID;
 
 public interface StockAlertRepository extends JpaRepository<StockAlertEntity, UUID> {
     List<StockAlertEntity> findByCreatedAtAfter(LocalDateTime dateTime);
-    List<StockAlertEntity> findByTicker(String ticker);
+    List<StockAlertEntity> findByStock_Ticker(String ticker);
 }

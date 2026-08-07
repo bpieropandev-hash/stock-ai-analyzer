@@ -1,11 +1,15 @@
 package com.stockai.analysis;
 
+import com.stockai.stock.Stock;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import java.time.LocalDate;
@@ -18,7 +22,7 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "score_history", indexes = {
-        @Index(name = "idx_score_history_ticker_date", columnList = "ticker, analysisDate")
+        @Index(name = "idx_score_history_stock_date", columnList = "stock_id, analysis_date")
 })
 public class ScoreHistoryEntity {
 
@@ -26,8 +30,12 @@ public class ScoreHistoryEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String ticker;
+    // EAGER: Stock é uma tabela pequena (id+ticker) e todo consumidor precisa do
+    // ticker imediatamente — LAZY exigiria @Transactional em todo call site que
+    // hoje não tem (ex.: ScoreAlertService.getAlertsByTicker).
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @JoinColumn(name = "stock_id", nullable = false)
+    private Stock stock;
 
     @Column(nullable = false)
     private LocalDate analysisDate;
@@ -51,11 +59,11 @@ public class ScoreHistoryEntity {
         // exigido pelo JPA
     }
 
-    public ScoreHistoryEntity(String ticker, LocalDate analysisDate, double scoreGeral,
+    public ScoreHistoryEntity(Stock stock, LocalDate analysisDate, double scoreGeral,
                               double fundamentos, double valuation, double regimeMomentum,
                               double sentimentoInstitucional, double retornoAcionista,
                               double gestaoRisco, String modelUsed, String promptVersion) {
-        this.ticker = ticker;
+        this.stock = stock;
         this.analysisDate = analysisDate;
         this.scoreGeral = scoreGeral;
         this.fundamentos = fundamentos;
@@ -70,7 +78,8 @@ public class ScoreHistoryEntity {
     }
 
     public Long getId() { return id; }
-    public String getTicker() { return ticker; }
+    public Stock getStock() { return stock; }
+    public String getTicker() { return stock.getTicker(); }
     public LocalDate getAnalysisDate() { return analysisDate; }
     public double getScoreGeral() { return scoreGeral; }
     public double getFundamentos() { return fundamentos; }

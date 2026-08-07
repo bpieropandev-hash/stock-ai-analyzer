@@ -1,5 +1,8 @@
 package com.stockai.analysis;
 
+import com.stockai.stock.Stock;
+import com.stockai.stock.StockRepository;
+import com.stockai.stock.TickerNormalizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,11 +20,14 @@ public class ScoreAlertService {
 
     private final ScoreHistoryService scoreHistoryService;
     private final StockAlertRepository alertRepository;
+    private final StockRepository stockRepository;
 
     public ScoreAlertService(ScoreHistoryService scoreHistoryService,
-                             StockAlertRepository alertRepository) {
+                             StockAlertRepository alertRepository,
+                             StockRepository stockRepository) {
         this.scoreHistoryService = scoreHistoryService;
         this.alertRepository = alertRepository;
+        this.stockRepository = stockRepository;
     }
 
     public void checkAndAlert(StockAnalysis analysis) {
@@ -38,8 +44,9 @@ public class ScoreAlertService {
                         if (Math.abs(delta) > ALERT_THRESHOLD) {
                             String direction = delta > 0 ? "UP" : "DOWN";
                             double magnitude = Math.round(Math.abs(delta) * 100.0) / 100.0;
+                            Stock stock = stockRepository.findOrCreate(analysis.ticker());
                             StockAlertEntity entity = new StockAlertEntity(
-                                    analysis.ticker(),
+                                    stock,
                                     today,
                                     previous.scoreGeral(),
                                     analysis.scoreGeral(),
@@ -67,7 +74,7 @@ public class ScoreAlertService {
     }
 
     public List<StockAlert> getAlertsByTicker(String ticker) {
-        return alertRepository.findByTicker(ticker)
+        return alertRepository.findByStock_Ticker(TickerNormalizer.canonical(ticker))
                 .stream()
                 .map(this::toDto)
                 .toList();

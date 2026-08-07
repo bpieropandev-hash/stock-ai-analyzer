@@ -2,6 +2,19 @@
 
 > Estado em 2026-08-07.
 
+## ✅ Concluído (2026-08-07) — Entidade `Stock` canônica + JWT TTL reduzido (Sprint 1, itens 3 e 4)
+
+**Entidade `Stock`** (`com.stockai.stock`) — `id`, `ticker` (unique, canônico via `TickerNormalizer`), `createdAt`. `portfolio_items`, `score_history`, `stock_alerts` trocaram a coluna `ticker` por FK `stock_id` (migration `V2__introduce_stock_entity.sql`). Criada sob demanda (`StockRepository.findOrCreate`).
+- Bug real descoberto e corrigido no processo: `portfolio_items`/`stock_alerts` guardavam ticker sem sufixo (`PETR4`), `score_history` guardava com sufixo `.SA` do yfinance (`PETR4.SA`) — nunca detectado por falta de FK. `TickerNormalizer` agora é o único ponto de normalização.
+- Fora do escopo por decisão: `StockAnalysisService`/`ComparisonService`/`BacktestService`/`SectorClassifier`/`PythonDataGateway`/embeddings pgvector continuam com `ticker: String` — só manipulam ticker em trânsito, nunca persistem via JPA. Colunas de nome/setor/CNPJ/tipo de ativo não adicionadas ainda — nada as popula hoje.
+- Verificado com dados sintéticos reais (3 formatos de ticker pro mesmo ativo, migration convergiu pro mesmo `stock_id`); `ddl-auto: validate` passou; suíte 14/14 verde.
+- Ver `decisions.md` para o desenho completo.
+
+**JWT TTL**: 7 dias → 24h (`JwtService.TTL_MS`) — mitigação parcial enquanto refresh token não existe, reduz a janela de exposição de um token vazado em 7x. `authInterceptor` (frontend) ganhou tratamento de 401 (limpa token + redireciona pra `/login`) — sem isso, expiração mais curta quebraria a tela silenciosamente com mais frequência.
+- Trade-off aceito: sem refresh, usuário reloga a cada 24h em vez de 7 dias. Refresh token de verdade continua fora do roadmap deste item.
+
+Sprint 1 completo (Flyway → URLs configuráveis → Stock → JWT). Próximo: Sprint 2 (FinBERT real, tabela de auditoria — reranker de RAG segue adiado por acordo mútuo com o GPT).
+
 ## ✅ Concluído (2026-08-07) — URLs configuráveis (Sprint 1, item 2)
 
 - Backend: `app.cors.allowed-origins` (`CORS_ALLOWED_ORIGINS`) e `app.frontend.base-url` (`FRONTEND_BASE_URL`) novos em `application.yml`, lidos via `@Value` em `SecurityConfig`/`OAuth2SuccessHandler` — default `http://localhost:4200`, comportamento de dev inalterado

@@ -92,7 +92,7 @@ Cada um dos 7 pacotes acima é uma pasta única sem subdivisão adicional (ex.: 
 | Linguagem backend | Java 26 | `java.version=26` no `pom.xml`; usa virtual threads (`Executors.newVirtualThreadPerTaskExecutor()`) para paralelizar I/O de coleta de dados sem gerenciar pool de threads manualmente |
 | Framework backend | Spring Boot 4.0.6 | Parent do `pom.xml`; Spring Boot 4 usa `tools.jackson.*` em vez de `com.fasterxml.jackson.*` (nota explícita no CLAUDE.md do projeto) |
 | Segurança | Spring Security + OAuth2 Client | Login delegado ao Google, sem senha local própria |
-| Autenticação de API | JWT (`io.jsonwebtoken` / jjwt 0.12.6) | Token stateless de 7 dias emitido após login OAuth2, validado em filtro próprio (`JwtAuthFilter`) |
+| Autenticação de API | JWT (`io.jsonwebtoken` / jjwt 0.12.6) | Token stateless de 24h (era 7 dias até 2026-08-07) emitido após login OAuth2, validado em filtro próprio (`JwtAuthFilter`) |
 | Banco relacional | PostgreSQL 17 (`pgvector/pgvector:pg17`) | Mesma instância serve dados relacionais (usuários, carteira, histórico de score) e vetores (embeddings) — evita operar um banco vetorial separado |
 | Extensão vetorial | pgvector (via LangChain4j `langchain4j-pgvector`) | Armazena embeddings de fundamentos/análises/histórico para RAG |
 | Cache | Redis 7 (`redis:7-alpine`) | Cache de cotações, análises (30 min), benchmarks setoriais (24h); acesso via SCAN (nunca KEYS, evita bloqueio em produção) |
@@ -186,43 +186,52 @@ A tabela de embeddings (`stock_embeddings`) é uma exceção: **não é uma enti
 
 Sem campo de senha (login é 100% delegado ao Google). Sem coluna de role/status — não há RBAC nem forma de desabilitar uma conta sem deletar a linha.
 
+**`stock`** (`Stock`) — desde 2026-08-07 (ver `decisions.md`)
+| Campo | Coluna | Constraint |
+|---|---|---|
+| id | id | BIGINT, PK auto-increment |
+| ticker | ticker | not null, unique, VARCHAR(10) — forma canônica (`TickerNormalizer.canonical`): ticker B3 puro, maiúsculo, sem sufixo `.SA` do Yahoo |
+| createdAt | created_at | not null |
+
+Criada sob demanda (`StockRepository.findOrCreate`) na primeira vez que um ticker é referenciado — não existe cadastro manual nem coluna de nome/setor/CNPJ ainda (deliberadamente mínima, ver `decisions.md`).
+
 **`portfolio_items`** (`PortfolioItem`)
 | Campo | Coluna | Constraint |
 |---|---|---|
 | id | id | UUID, PK |
 | user | user_id | FK → `users`, `@ManyToOne` LAZY, obrigatório |
-| ticker | ticker | not null |
+| stock | stock_id | FK → `stock`, `@ManyToOne` EAGER, obrigatório (era coluna `ticker` string até 2026-08-07) |
 | quantity | quantity | not null |
 | averagePrice | average_price | not null |
 | purchaseDate | purchase_date | nullable |
 | createdAt / updatedAt | created_at / updated_at | not null; `updatedAt` atualizado via `@PreUpdate` |
 
-**Unique constraint composta `(user_id, ticker)`** — uma posição por ticker por usuário.
+**Unique constraint composta `(user_id, stock_id)`** — uma posição por ativo por usuário.
 
 **`score_history`** (`ScoreHistoryEntity`)
 | Campo | Tipo |
 |---|---|
 | id | Long, PK auto-increment |
-| ticker | String |
+| stock | `@ManyToOne` EAGER → `Stock` (era `ticker` String até 2026-08-07) |
 | analysisDate | LocalDate |
 | scoreGeral, fundamentos, valuation, regimeMomentum, sentimentoInstitucional, retornoAcionista, gestaoRisco | double (as 6 dimensões + geral) |
 | modelUsed, promptVersion | String (auditoria mínima) |
 | createdAt | LocalDateTime |
 
-Índice composto `idx_score_history_ticker_date` em `(ticker, analysisDate)`. **`ticker` é string livre, sem FK para nenhuma entidade "Stock"** — não existe tabela canônica de ações no sistema (ver Seção 19).
+Índice composto `idx_score_history_stock_date` em `(stock_id, analysis_date)` (renomeado de `idx_score_history_ticker_date` na migration V2).
 
 **`stock_alerts`** (`StockAlertEntity`)
 | Campo | Coluna |
 |---|---|
 | id | UUID, PK |
-| ticker | ticker |
+| stock | stock_id (FK → `stock`, era `ticker` string até 2026-08-07) |
 | alertDate | alert_date |
 | scoreBefore / scoreAfter | score_before / score_after |
 | direction | direction (varchar 4) |
 | magnitude | magnitude |
 | createdAt | created_at |
 
-Sem índice declarado além da PK.
+Sem índice declarado além da PK e da FK.
 
 **`stock_embeddings`** (não-JPA, gerida pelo LangChain4j `PgVectorEmbeddingStore`)
 - Vetores de 768 dimensões (nomic-embed-text).
@@ -233,38 +242,45 @@ Sem índice declarado além da PK.
 ```mermaid
 erDiagram
     USERS ||--o{ PORTFOLIO_ITEMS : possui
+    STOCK ||--o{ PORTFOLIO_ITEMS : referenciado_por
+    STOCK ||--o{ SCORE_HISTORY : referenciado_por
+    STOCK ||--o{ STOCK_ALERTS : referenciado_por
     USERS {
         uuid id PK
         string google_id UK
         string email UK
         string name
     }
+    STOCK {
+        bigint id PK
+        string ticker UK "canônico, sem .SA"
+    }
     PORTFOLIO_ITEMS {
         uuid id PK
         uuid user_id FK
-        string ticker
+        bigint stock_id FK
         double quantity
         double average_price
     }
     SCORE_HISTORY {
         bigint id PK
-        string ticker "sem FK"
+        bigint stock_id FK
         date analysis_date
         double score_geral
     }
     STOCK_ALERTS {
         uuid id PK
-        string ticker "sem FK"
+        bigint stock_id FK
         double score_before
         double score_after
     }
     STOCK_EMBEDDINGS {
         vector embedding
-        string ticker "metadado, sem FK"
+        string ticker "metadado, sem FK — pgvector, fora do escopo da migration"
         string type
     }
 ```
-`SCORE_HISTORY`, `STOCK_ALERTS` e `STOCK_EMBEDDINGS` não têm relação formal (FK) entre si nem com `PORTFOLIO_ITEMS` — todos usam `ticker` como string solta. A junção entre carteira e histórico de score acontece em tempo de leitura (código Java), não no banco.
+Desde 2026-08-07 (migration `V2__introduce_stock_entity.sql`, ver `decisions.md`), `PORTFOLIO_ITEMS`, `SCORE_HISTORY` e `STOCK_ALERTS` referenciam `STOCK` por FK — a junção acontece no banco, não mais em tempo de leitura no Java. `STOCK_EMBEDDINGS` continua usando `ticker` como metadado de string solta (mecanismo do pgvector/LangChain4j, sem FK possível) — deliberadamente fora do escopo dessa migration.
 
 ### Repositórios (Spring Data, sem `@Query` customizado — só derived queries)
 - `UserRepository`: `findByGoogleId`, `findByEmail`
@@ -292,7 +308,7 @@ Entidades de negócio (nem todas são tabelas — várias são apenas records em
 - **`Allocation`/`SimulationResult`** — resultado do simulador de alocação, não persistido.
 - **`SectorType`** (enum) — classificação setorial de 11 valores usada para instruções de prompt e benchmarks.
 
-**Não existe uma entidade "Stock"/"Ticker" canônica** no sistema — todo o domínio referencia ações por string de ticker solta, sem tabela de cadastro nem integridade referencial entre módulos. Isso é uma observação importante para qualquer arquiteto avaliando o projeto (ver Seção 19).
+**Entidade `Stock` canônica** (desde 2026-08-07, ver `decisions.md`) — `portfolio_items`, `score_history` e `stock_alerts` referenciam por FK, criada sob demanda no primeiro uso do ticker. Serviços que só manipulam ticker em trânsito por requisição (`StockAnalysisService`, `ComparisonService`, `BacktestService`, `SectorClassifier`, `PythonDataGateway`, embeddings pgvector) continuam usando `String` — não foram tocados, deliberadamente (ver `decisions.md`).
 
 ---
 
@@ -370,7 +386,7 @@ sequenceDiagram
     G-->>BE: code → troca por userinfo (sub, email, name, picture)
     BE->>H: onAuthenticationSuccess
     H->>DB: upsert UserEntity por googleId
-    H->>H: gera JWT (7 dias, HMAC)
+    H->>H: gera JWT (24h, HMAC)
     H-->>FE: 302 redirect /auth/callback?token=...
     FE->>FE: auth-callback.ts salva token em localStorage
     FE->>FE: navega para /dashboard
@@ -505,7 +521,7 @@ Sem RBAC. `JwtAuthFilter` sempre atribui `List.of()` (nenhuma authority) — a �
 ### JWT
 - Biblioteca `io.jsonwebtoken` (jjwt 0.12.6), chave HMAC (`Keys.hmacShaKeyFor`), algoritmo auto-selecionado pelo tamanho da chave (tipicamente HS256+).
 - Claims: `sub` (UUID do usuário), `email`, `name`, `iat`, `exp`.
-- **Expiração fixa de 7 dias**, hardcoded (`TTL_MS`), não configurável via env.
+- **Expiração fixa de 24h** (`TTL_MS`, era 7 dias até 2026-08-07 — ver `decisions.md`), hardcoded, não configurável via env.
 - **Secret sem fallback fraco** — `${JWT_SECRET}` não tem valor default; app falha ao subir se a env var não existir. `.env.example` exige mínimo 32 caracteres aleatórios. Este é o fix documentado do item "JWT secret sem fallback fraco" do overhaul anterior.
 - **Sem refresh token, sem revogação/blacklist** — logout é só client-side (remoção do `localStorage`); um token vazado continua válido até expirar naturalmente.
 - Token entregue ao frontend **via query string em redirect HTTP 302** (`?token=...`) — risco de exposição em histórico de navegador e logs de proxy/CDN, mitigado apenas pela curta janela de uso antes de mover para `localStorage`.
@@ -618,7 +634,7 @@ Fonte: `docs/ROADMAP.md` (estado em 2026-06-12) + lacunas adicionais identificad
 - **Ausência de rate limiting expõe custo direto** — cada miss de cache em endpoint público dispara uma chamada de LLM paga, sem limite algum de requisições por IP/usuário.
 - **Cobertura de testes muito baixa**, principalmente no frontend (efetivamente zero) e em serviços críticos do backend (`ComparisonService`, `BacktestService`, `SectorClassifier` sem nenhum teste).
 - **Ausência de tabela de auditoria completa** dificulta investigar por que um score específico saiu de um jeito (só se sabe `modelUsed`/`promptVersion`, não o prompt/resposta exatos).
-- **JWT sem revogação nem refresh** — modelo de sessão de 7 dias fixos é simples, mas não escala para um requisito de segurança mais rígido (ex.: banir usuário imediatamente).
+- **JWT sem revogação nem refresh** — modelo de sessão de 24h fixas (reduzido de 7 dias em 2026-08-07) é mais simples que rotação, mas não escala para um requisito de segurança mais rígido (ex.: banir usuário imediatamente).
 - **`SectorClassifier` com mapeamentos incorretos conhecidos** já afeta a qualidade das instruções de prompt e dos benchmarks para setores mal classificados.
 
 ---
@@ -788,7 +804,7 @@ O score é composto por 6 dimensões independentes, cada uma com peso e explica�
 
 ## 19. Observações
 
-- **Não existe entidade "Stock"/"Ticker" canônica no sistema.** Todas as tabelas (`score_history`, `stock_alerts`, `portfolio_items`, embeddings) referenciam ações por string de ticker solta, sem FK nem cadastro central. Isso significa: nenhuma garantia de integridade contra typos de ticker entre módulos, nenhuma forma simples de renomear/mapear um ticker que mudou de código na B3 de forma centralizada (o tratamento de tickers delistados/renomeados hoje é feito ad-hoc no script de benchmarks setoriais).
+- ~~**Não existe entidade "Stock"/"Ticker" canônica no sistema.**~~ Resolvido em 2026-08-07 — `score_history`, `stock_alerts` e `portfolio_items` referenciam `Stock` por FK (ver `decisions.md`). A migration de backfill revelou um bug real: `portfolio_items`/`stock_alerts` guardavam ticker sem sufixo (`PETR4`) e `score_history` guardava com sufixo `.SA` do Yahoo (`PETR4.SA`) — mesmo ativo, formatos diferentes, nunca detectado por falta de FK. `TickerNormalizer` agora é o único ponto de normalização. Embeddings pgvector continuam com `ticker` como metadado de string solta (mecanismo do LangChain4j, sem FK possível) — fora do escopo dessa migration. Tickers delistados/renomeados na B3 continuam sem tratamento centralizado (script de benchmarks setoriais trata ad-hoc) — não resolvido por esta mudança.
 - **A flag de "ano eleitoral" no prompt é hardcoded como `(ano atual - 2026) % 4 == 0`** — ou seja, assume 2026 como ano-âncora do ciclo eleitoral brasileiro. Correto hoje, mas é uma constante mágica que vale a pena documentar/revisar se o código sobreviver a vários ciclos.
 - **`HUGGINGFACE_TOKEN` está configurado em `application.yml` mas nenhum código consumidor foi encontrado** — parece ser preparação antecipada para a evolução de sentimento (FinBERT-PT-BR) do roadmap, ainda não conectada.
 - **Dependências de WebSocket (`@stomp/stompjs`, `sockjs-client`) seguem no `package.json` do frontend sem uso real** — `StockService` documenta em comentário que abandonou WebSocket porque `/ws` retornava 404, e migrou para polling HTTP a cada 30s. Seguro remover se confirmado que não há plano de retomar STOMP.

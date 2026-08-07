@@ -9,5 +9,5 @@ import java.util.UUID;
 
 public interface PortfolioRepository extends JpaRepository<PortfolioItem, UUID> {
     List<PortfolioItem> findByUser(UserEntity user);
-    Optional<PortfolioItem> findByUserAndTicker(UserEntity user, String ticker);
+    Optional<PortfolioItem> findByUserAndStock_Ticker(UserEntity user, String ticker);
 }

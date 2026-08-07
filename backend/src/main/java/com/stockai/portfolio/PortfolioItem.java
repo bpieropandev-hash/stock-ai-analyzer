@@ -1,5 +1,6 @@
 package com.stockai.portfolio;
 
+import com.stockai.stock.Stock;
 import com.stockai.user.UserEntity;
 import jakarta.persistence.*;
 import java.time.LocalDate;
@@ -8,7 +9,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "portfolio_items",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "ticker"}))
+        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "stock_id"}))
 public class PortfolioItem {
 
     @Id
@@ -19,8 +20,11 @@ public class PortfolioItem {
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
 
-    @Column(nullable = false)
-    private String ticker;
+    // EAGER: ver comentário equivalente em ScoreHistoryEntity — Stock é pequeno
+    // e o ticker é lido em quase todo método de PortfolioService.
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @JoinColumn(name = "stock_id", nullable = false)
+    private Stock stock;
 
     @Column(nullable = false)
     private Double quantity;
@@ -39,10 +43,10 @@ public class PortfolioItem {
 
     protected PortfolioItem() {}
 
-    public PortfolioItem(UserEntity user, String ticker, Double quantity,
+    public PortfolioItem(UserEntity user, Stock stock, Double quantity,
                          Double averagePrice, LocalDate purchaseDate) {
         this.user = user;
-        this.ticker = ticker;
+        this.stock = stock;
         this.quantity = quantity;
         this.averagePrice = averagePrice;
         this.purchaseDate = purchaseDate;
@@ -58,7 +62,8 @@ public class PortfolioItem {
 
     public UUID getId() { return id; }
     public UserEntity getUser() { return user; }
-    public String getTicker() { return ticker; }
+    public Stock getStock() { return stock; }
+    public String getTicker() { return stock.getTicker(); }
     public Double getQuantity() { return quantity; }
     public void setQuantity(Double quantity) { this.quantity = quantity; }
     public Double getAveragePrice() { return averagePrice; }

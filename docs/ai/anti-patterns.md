@@ -5,7 +5,7 @@ Coisas encontradas no código que **não devem ser copiadas como padrão** para 
 ## Segurança
 
 - **`.anyRequest().permitAll()` no final da cadeia de segurança** — postura fail-open: endpoint novo sem regra explícita fica público por padrão. Ao adicionar endpoint, sempre declarar a regra explicitamente, não confiar no catch-all.
-- **JWT sem revogação, sem refresh token** — token de 7 dias fixo (`TTL_MS` hardcoded), logout é só client-side (`localStorage.removeItem`). Um token vazado continua válido até expirar naturalmente. Não propor "logout" como solução de segurança real sem lembrar disso.
+- **JWT sem revogação, sem refresh token** — `TTL_MS` reduzido de 7 dias para 24h em 2026-08-07 (mitigação parcial, ver `decisions.md`), mas continua sem revogação e sem refresh. Logout é só client-side (`localStorage.removeItem`). Um token vazado continua válido até expirar (agora no máximo 24h, não mais 7 dias). Não propor "logout" como solução de segurança real sem lembrar disso — revogação de verdade continua não implementada.
 - **Token entregue via query string em redirect HTTP** (`OAuth2SuccessHandler` → `?token=...`) — risco de exposição em histórico de navegador e logs de proxy. Alternativa mais segura (cookie httpOnly, ou POST em vez de redirect GET) não implementada ainda.
 - **Token em `localStorage`**, não em cookie httpOnly — exposto a qualquer XSS na SPA.
 - **Sem rate limiting em nenhum endpoint público** — `/api/stocks/**`, `/api/compare`, `/api/simulate`, `/api/alerts/**` disparam chamada de LLM (custo real) sem limite algum. Não assumir que isso está coberto antes de expor a API publicamente.

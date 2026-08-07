@@ -1,5 +1,8 @@
 package com.stockai.analysis;
 
+import com.stockai.stock.Stock;
+import com.stockai.stock.StockRepository;
+import com.stockai.stock.TickerNormalizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -14,16 +17,19 @@ public class ScoreHistoryService {
     private static final Logger log = LoggerFactory.getLogger(ScoreHistoryService.class);
 
     private final ScoreHistoryRepository repository;
+    private final StockRepository stockRepository;
 
-    public ScoreHistoryService(ScoreHistoryRepository repository) {
+    public ScoreHistoryService(ScoreHistoryRepository repository, StockRepository stockRepository) {
         this.repository = repository;
+        this.stockRepository = stockRepository;
     }
 
     @Transactional
     public void saveScore(StockAnalysis analysis, String modelUsed, String promptVersion) {
         try {
+            Stock stock = stockRepository.findOrCreate(analysis.ticker());
             repository.save(new ScoreHistoryEntity(
-                    analysis.ticker(),
+                    stock,
                     analysis.analysisDate(),
                     analysis.scoreGeral(),
                     analysis.fundamentos().score(),
@@ -45,7 +51,8 @@ public class ScoreHistoryService {
     @Transactional(readOnly = true)
     public List<ScoreSnapshot> getScoreHistory(String ticker, int days) {
         LocalDate cutoff = LocalDate.now().minusDays(days);
-        return repository.findByTickerAndAnalysisDateAfterOrderByAnalysisDateAsc(ticker, cutoff)
+        String canonical = TickerNormalizer.canonical(ticker);
+        return repository.findByStock_TickerAndAnalysisDateAfterOrderByAnalysisDateAsc(canonical, cutoff)
                 .stream()
                 .map(this::toSnapshot)
                 .toList();
@@ -53,7 +60,7 @@ public class ScoreHistoryService {
 
     @Transactional(readOnly = true)
     public List<ScoreHistoryEntity> getFullHistory(String ticker) {
-        return repository.findByTickerOrderByAnalysisDateAsc(ticker);
+        return repository.findByStock_TickerOrderByAnalysisDateAsc(TickerNormalizer.canonical(ticker));
     }
 
     public ScoreSnapshot getLatestScore(String ticker) {

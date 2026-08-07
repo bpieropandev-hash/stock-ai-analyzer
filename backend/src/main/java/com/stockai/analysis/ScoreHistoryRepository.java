@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface ScoreHistoryRepository extends JpaRepository<ScoreHistoryEntity, Long> {
 
-    List<ScoreHistoryEntity> findByTickerAndAnalysisDateAfterOrderByAnalysisDateAsc(String ticker, LocalDate cutoff);
+    List<ScoreHistoryEntity> findByStock_TickerAndAnalysisDateAfterOrderByAnalysisDateAsc(String ticker, LocalDate cutoff);
 
-    List<ScoreHistoryEntity> findByTickerOrderByAnalysisDateAsc(String ticker);
+    List<ScoreHistoryEntity> findByStock_TickerOrderByAnalysisDateAsc(String ticker);
 }

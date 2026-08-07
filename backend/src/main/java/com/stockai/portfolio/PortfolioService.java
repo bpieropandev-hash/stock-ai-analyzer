@@ -4,6 +4,9 @@ import com.stockai.analysis.Allocation;
 import com.stockai.analysis.AnalysisResponse;
 import com.stockai.analysis.SimulationResult;
 import com.stockai.analysis.StockAnalysisService;
+import com.stockai.stock.Stock;
+import com.stockai.stock.StockRepository;
+import com.stockai.stock.TickerNormalizer;
 import com.stockai.user.UserEntity;
 import com.stockai.user.UserRepository;
 import org.slf4j.Logger;
@@ -24,13 +27,16 @@ public class PortfolioService {
     private final PortfolioRepository portfolioRepository;
     private final UserRepository userRepository;
     private final StockAnalysisService analysisService;
+    private final StockRepository stockRepository;
 
     public PortfolioService(PortfolioRepository portfolioRepository,
                             UserRepository userRepository,
-                            StockAnalysisService analysisService) {
+                            StockAnalysisService analysisService,
+                            StockRepository stockRepository) {
         this.portfolioRepository = portfolioRepository;
         this.userRepository = userRepository;
         this.analysisService = analysisService;
+        this.stockRepository = stockRepository;
     }
 
     @Transactional(readOnly = true)
@@ -65,23 +71,26 @@ public class PortfolioService {
     public PortfolioItem addOrUpdate(String userId, String ticker, Double quantity,
                                      Double averagePrice, LocalDate purchaseDate) {
         UserEntity user = getUserOrThrow(userId);
-        String normalizedTicker = ticker.toUpperCase();
-        return portfolioRepository.findByUserAndTicker(user, normalizedTicker)
+        String normalizedTicker = TickerNormalizer.canonical(ticker);
+        return portfolioRepository.findByUserAndStock_Ticker(user, normalizedTicker)
                 .map(item -> {
                     item.setQuantity(quantity);
                     item.setAveragePrice(averagePrice);
                     if (purchaseDate != null) item.setPurchaseDate(purchaseDate);
                     return portfolioRepository.save(item);
                 })
-                .orElseGet(() -> portfolioRepository.save(
-                        new PortfolioItem(user, normalizedTicker, quantity, averagePrice, purchaseDate)
-                ));
+                .orElseGet(() -> {
+                    Stock stock = stockRepository.findOrCreate(normalizedTicker);
+                    return portfolioRepository.save(
+                            new PortfolioItem(user, stock, quantity, averagePrice, purchaseDate)
+                    );
+                });
     }
 
     @Transactional
     public void remove(String userId, String ticker) {
         UserEntity user = getUserOrThrow(userId);
-        portfolioRepository.findByUserAndTicker(user, ticker.toUpperCase())
+        portfolioRepository.findByUserAndStock_Ticker(user, TickerNormalizer.canonical(ticker))
                 .ifPresent(portfolioRepository::delete);
     }
 

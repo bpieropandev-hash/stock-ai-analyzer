@@ -1,5 +1,6 @@
 package com.stockai.analysis;
 
+import com.stockai.stock.Stock;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -13,8 +14,10 @@ public class StockAlertEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
-    private String ticker;
+    // EAGER: ver comentário equivalente em ScoreHistoryEntity.
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @JoinColumn(name = "stock_id", nullable = false)
+    private Stock stock;
 
     @Column(name = "alert_date", nullable = false)
     private LocalDate alertDate;
@@ -36,10 +39,10 @@ public class StockAlertEntity {
 
     protected StockAlertEntity() {}
 
-    public StockAlertEntity(String ticker, LocalDate alertDate, double scoreBefore,
+    public StockAlertEntity(Stock stock, LocalDate alertDate, double scoreBefore,
                             double scoreAfter, String direction, double magnitude,
                             LocalDateTime createdAt) {
-        this.ticker = ticker;
+        this.stock = stock;
         this.alertDate = alertDate;
         this.scoreBefore = scoreBefore;
         this.scoreAfter = scoreAfter;
@@ -49,7 +52,8 @@ public class StockAlertEntity {
     }
 
     public UUID getId() { return id; }
-    public String getTicker() { return ticker; }
+    public Stock getStock() { return stock; }
+    public String getTicker() { return stock.getTicker(); }
     public LocalDate getAlertDate() { return alertDate; }
     public double getScoreBefore() { return scoreBefore; }
     public double getScoreAfter() { return scoreAfter; }

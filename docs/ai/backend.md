@@ -50,10 +50,15 @@ Estratégia: **Flyway**, migrations em `backend/src/main/resources/db/migration/
 
 Entidades JPA (detalhe completo em `docs/PROJECT_DOCUMENTATION.md` seção 5):
 - `users` (`UserEntity`) — sem senha, sem role/status, upsert por `googleId`.
-- `portfolio_items` (`PortfolioItem`) — `@ManyToOne` para `UserEntity`, unique `(user_id, ticker)`.
-- `score_history` (`ScoreHistoryEntity`) — índice composto `(ticker, analysisDate)`, `ticker` é string solta sem FK.
-- `stock_alerts` (`StockAlertEntity`) — sem índice além da PK.
-- `stock_embeddings` — **não é entidade JPA**, criada/gerida pelo `PgVectorEmbeddingStore` do LangChain4j (`createTable(true)`), fora do controle do Hibernate. Metadados `ticker`/`date`/`type` como colunas dedicadas (`COLUMN_PER_KEY`).
+- `stock` (`Stock`, `com.stockai.stock`) — desde 2026-08-07 (ver `decisions.md`). Identidade canônica de ativo: `id`, `ticker` (unique, forma canônica sem `.SA` — `TickerNormalizer.canonical`), `createdAt`. Criada sob demanda via `StockRepository.findOrCreate(rawTicker)`, nunca via `new Stock(...)` fora do pacote (construtor package-private).
+- `portfolio_items` (`PortfolioItem`) — `@ManyToOne` para `UserEntity` (LAZY) e `Stock` (EAGER), unique `(user_id, stock_id)`.
+- `score_history` (`ScoreHistoryEntity`) — `@ManyToOne` EAGER para `Stock`, índice composto `(stock_id, analysis_date)`.
+- `stock_alerts` (`StockAlertEntity`) — `@ManyToOne` EAGER para `Stock`, sem índice além da PK/FK.
+- `stock_embeddings` — **não é entidade JPA**, criada/gerida pelo `PgVectorEmbeddingStore` do LangChain4j (`createTable(true)`), fora do controle do Hibernate. Metadados `ticker`/`date`/`type` como colunas dedicadas (`COLUMN_PER_KEY`) — continua string solta, sem FK possível pro mecanismo de vetor; deliberadamente fora do escopo da entidade `Stock`.
+
+`Stock` é EAGER nas 3 entidades (não LAZY como `PortfolioItem.user`) — é uma tabela pequena e o ticker é lido em praticamente todo call site; LAZY exigiria `@Transactional` em métodos que hoje não têm (ex.: `ScoreAlertService.getAlertsByTicker`), risco real de `LazyInitializationException`.
+
+`StockAnalysisService`, `ComparisonService`, `BacktestService`, `SectorClassifier`, `PythonDataGateway` continuam recebendo ticker como `String` — só manipulam ticker em trânsito por requisição, nunca persistem diretamente. Não foram tocados pela introdução de `Stock` (ver `decisions.md`).
 
 Repositórios: só derived queries (nenhum `@Query` customizado no projeto todo). Antes de adicionar um método novo, checar se um derived-query name já resolve.
 

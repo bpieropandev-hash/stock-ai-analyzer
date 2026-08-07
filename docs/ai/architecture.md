@@ -51,10 +51,11 @@ Ver `decisions.md` para o porquê de cada uma. Resumo:
 - RAG exclui análises passadas — evita feedback loop.
 - Temperature 0 nos dois LLMs — scoring determinístico.
 - CVM como fonte primária de fundamentos, yfinance como fallback.
-- `ddl-auto: update` em vez de Flyway (dívida técnica reconhecida — ver `anti-patterns.md`).
+- Flyway versiona schema desde 2026-08-06 (`ddl-auto: validate`, era `update` — ver `decisions.md`).
 - Sidecar Python em vez de reescrever coleta de dados em Java.
 - Benchmarks setoriais dinâmicos porque o LLM "inventa" médias de memória sem eles.
+- `Stock` como entidade canônica desde 2026-08-07 — `portfolio_items`/`score_history`/`stock_alerts` referenciam por FK.
 
-## Não existe entidade "Stock"/"Ticker" canônica
+## Entidade `Stock` canônica (desde 2026-08-07)
 
-Toda referência a ação é string de ticker solta (`score_history`, `stock_alerts`, `portfolio_items`, embeddings) — sem FK, sem cadastro central. Cuidado ao propor qualquer alteração que assuma integridade referencial entre módulos por ticker; ela não existe hoje.
+`score_history`, `stock_alerts` e `portfolio_items` referenciam `Stock` por FK (`stock_id`), criada sob demanda no primeiro uso do ticker (`StockRepository.findOrCreate`). Ver `backend.md` e `decisions.md` para o desenho completo e o bug de formato de ticker que a migration corrigiu. **Continua string solta, deliberadamente**: serviços que só manipulam ticker em trânsito por requisição (`StockAnalysisService`, `ComparisonService`, `BacktestService`, `SectorClassifier`, `PythonDataGateway`) e os metadados de `stock_embeddings` no pgvector (mecanismo do LangChain4j, sem FK possível).
