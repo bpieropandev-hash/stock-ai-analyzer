@@ -1,6 +1,23 @@
 # Roadmap — stock-ai-analyzer
 
-> Estado em 2026-06-12.
+> Estado em 2026-08-07.
+
+## ✅ Concluído (2026-08-07) — URLs configuráveis (Sprint 1, item 2)
+
+- Backend: `app.cors.allowed-origins` (`CORS_ALLOWED_ORIGINS`) e `app.frontend.base-url` (`FRONTEND_BASE_URL`) novos em `application.yml`, lidos via `@Value` em `SecurityConfig`/`OAuth2SuccessHandler` — default `http://localhost:4200`, comportamento de dev inalterado
+- Frontend: `src/environments/environment.ts` (dev, absoluto) / `environment.prod.ts` (prod, relativo `/api` — assume reverse proxy same-origin) trocados via `fileReplacements` no `angular.json`; `stock.service.ts`, `portfolio.service.ts`, `auth.service.ts`, `simulator.ts` não hardcodam mais `localhost:8080`
+- Fora do escopo por decisão: URLs de vendor fixo (Gemini, Groq, CVM, BCB, Google News RSS) — não variam por ambiente, externalizar seria indireção sem ganho (ver `decisions.md`)
+- Verificado: `mvn clean compile` limpo; `ng build --configuration production` confirma `/api` no bundle, zero `localhost:8080`; suíte backend 13/14 (falha isolada exige Postgres local rodando)
+- Próximo item de Sprint 1 (ordem acordada com GPT): entidade `Stock` canônica antes de JWT — dívida estrutural cresce mais caro quanto mais o domínio (FIIs/ETFs/BDRs/cripto) se expande
+
+## ✅ Concluído (2026-08-06) — Flyway substituindo `ddl-auto: update` (P2-13)
+
+- `backend/pom.xml`: `spring-boot-starter-flyway` + `org.flywaydb:flyway-database-postgresql` (Spring Boot 4 exige o starter — `flyway-core` sozinho no classpath não roda migração automática). Versão resolvida via BOM: Flyway 11.14.1
+- `backend/src/main/resources/db/migration/V1__baseline_schema.sql` — baseline exata do schema que `ddl-auto: update` já tinha gerado (`users`, `portfolio_items`, `score_history`, `stock_alerts`); `stock_embeddings` fica de fora, continua gerida pelo `PgVectorEmbeddingStore` do LangChain4j
+- `application.yml`: `spring.jpa.hibernate.ddl-auto` `update` → `validate`; `spring.flyway.baseline-on-migrate: true` + `baseline-version: 1` — banco de dev já existente é marcado como já estando na v1 sem reexecutar o script; ambiente novo/vazio roda V1 normalmente
+- Verificado ponta a ponta contra Postgres real (`podman compose up`): schema vazio → V1 aplica limpo → Hibernate `validate` passa sem `SchemaManagementException` → segunda execução detecta "up to date", não reaplica
+- Suíte de testes: 14/14 verde (`AnalysisParserTest` 9/9, `SectorBenchmarksTest` 4/4, `StockAiAnalyzerBackendApplicationTests` 1/1 — este último exige `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` não-vazios no ambiente, já era assim antes desta mudança)
+- Toda mudança de entidade daqui pra frente exige migration `V{n+1}__*.sql` nova — `ddl-auto` não altera mais o banco
 
 ## ✅ Concluído (2026-06-12) — Tratamento específico para bancos/financeiras (P1-5)
 
@@ -88,7 +105,7 @@
 10. **Tabela de auditoria completa** — persistir snapshot de input + prompt + output bruto por análise (hoje só modelUsed/promptVersion).
 11. **`@ControllerAdvice`** — controllers engolem exceções e retornam 500 sem corpo.
 12. **Rate limiting** nos endpoints públicos de análise (cada miss de cache custa chamada de LLM).
-13. **Flyway** em vez de `ddl-auto: update` — schema versionado.
+13. ~~**Flyway** em vez de `ddl-auto: update` — schema versionado.~~ ✅ concluído em 2026-08-06 (ver seção acima)
 14. **Fluxo estrangeiro real da B3** (CSV diário publicado), short interest, aluguel BTC — substituir a dimensão "Sentimento Institucional" por dados institucionais de verdade.
 15. **Calendário de resultados e eventos corporativos** — análise na véspera de balanço tem validade diferente.
 

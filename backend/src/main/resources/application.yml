@@ -13,12 +13,22 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      # Schema é gerido pelo Flyway (db/migration/) — validate só confere que as
+      # entidades batem com o schema aplicado, nunca altera o banco.
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+
+  flyway:
+    enabled: true
+    # Banco de dev já existia via ddl-auto=update antes do Flyway entrar — em vez de
+    # recriar do zero, marca o schema atual como já estando na versão 1 (V1 é a
+    # baseline exata desse schema). Ambiente novo/limpo roda V1 normalmente.
+    baseline-on-migrate: true
+    baseline-version: 1
 
   data:
     redis:
@@ -41,6 +51,14 @@ spring:
             client-id: ${GOOGLE_CLIENT_ID:}
             client-secret: ${GOOGLE_CLIENT_SECRET:}
             scope: email,profile
+
+app:
+  cors:
+    # Lista separada por vírgula — origens permitidas a chamar a API (credentials=true exige origem exata, não wildcard).
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  frontend:
+    # Destino do redirect pós-login OAuth2 (SecurityConfig/OAuth2SuccessHandler).
+    base-url: ${FRONTEND_BASE_URL:http://localhost:4200}
 
 pgvector:
   host: ${POSTGRES_HOST:localhost}
