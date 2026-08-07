@@ -3,10 +3,7 @@ package com.stockai.analysis;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class SectorBenchmarksTest {
 
@@ -23,12 +20,13 @@ class SectorBenchmarksTest {
                              "netMargin": 0.0995, "debtToEquity": 1.0649}}""";
         String text = benchmarks.formatDynamic(objectMapper.readTree(json));
 
-        assertTrue(text.contains("9 empresas"));
-        assertTrue(text.contains("P/L: 8.9"));
-        assertTrue(text.contains("ROE: 13.8%"));
-        assertTrue(text.contains("Dividend Yield: 7.7%"));
-        assertTrue(text.contains("Dívida/PL: 1.1"));
-        assertTrue(text.contains("calculadas em 2026-06-12"));
+        assertThat(text)
+                .contains("9 empresas")
+                .contains("P/L: 8.9")
+                .contains("ROE: 13.8%")
+                .contains("Dividend Yield: 7.7%")
+                .contains("Dívida/PL: 1.1")
+                .contains("calculadas em 2026-06-12");
     }
 
     @Test
@@ -40,9 +38,10 @@ class SectorBenchmarksTest {
                              "netMargin": null, "debtToEquity": 0.8}}""";
         String text = benchmarks.formatDynamic(objectMapper.readTree(json));
 
-        assertFalse(text.contains("P/L"));
-        assertFalse(text.contains("Margem líquida"));
-        assertTrue(text.contains("P/VPA: 1.2"));
+        assertThat(text)
+                .doesNotContain("P/L")
+                .doesNotContain("Margem líquida")
+                .contains("P/VPA: 1.2");
     }
 
     @Test
@@ -50,11 +49,11 @@ class SectorBenchmarksTest {
         String json = """
                 {"peerCount": 2, "computedAt": "2026-06-12",
                  "medians": {"priceToEarnings": 8.0}}""";
-        assertNull(benchmarks.formatDynamic(objectMapper.readTree(json)));
+        assertThat(benchmarks.formatDynamic(objectMapper.readTree(json))).isNull();
     }
 
     @Test
     void rejeitaJsonSemPeerCount() {
-        assertNull(benchmarks.formatDynamic(objectMapper.readTree("{}")));
+        assertThat(benchmarks.formatDynamic(objectMapper.readTree("{}"))).isNull();
     }
 }

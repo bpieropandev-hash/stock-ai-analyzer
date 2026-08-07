@@ -20,6 +20,10 @@
 - Sempre `mvn dependency:resolve` após alterar `pom.xml`.
 - Nunca unificar versões de módulos LangChain4j numa propriedade única — ciclos de release independentes (ex.: `langchain4j-pgvector` fica pra trás de propósito).
 
+## Testes Java
+
+- **AssertJ** (`org.assertj.core.api.Assertions.assertThat`), não `org.junit.jupiter.api.Assertions` — desde 2026-08-07. Já vem transitivo via `spring-boot-starter-test` (`assertj-core`), sem mudança de `pom.xml`. `assertThatThrownBy(...).isInstanceOf(...)` no lugar de `assertThrows`. Testes antigos (`AnalysisParserTest`, `SectorBenchmarksTest`) já migrados — usar como referência de estilo.
+
 ## Build
 
 - Sempre `mvn clean compile` após alteração estrutural — zero warning antes de reportar conclusão.
