@@ -2,8 +2,9 @@ import { Injectable, OnDestroy } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { AnalysisResponse, ComparisonResult, StockAlert, StockQuote } from '../models/models';
+import { environment } from '../../../environments/environment';
 
-const API = 'http://localhost:8080/api';
+const API = `${environment.apiUrl}`;
 const POLL_INTERVAL_MS = 30_000;
 
 @Injectable({ providedIn: 'root' })

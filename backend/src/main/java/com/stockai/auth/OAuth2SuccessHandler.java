@@ -4,6 +4,7 @@ import com.stockai.user.UserEntity;
 import com.stockai.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
@@ -16,6 +17,9 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final UserRepository userRepository;
     private final JwtService jwtService;
+
+    @Value("${app.frontend.base-url}")
+    private String frontendBaseUrl;
 
     public OAuth2SuccessHandler(UserRepository userRepository, JwtService jwtService) {
         this.userRepository = userRepository;
@@ -42,6 +46,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 .orElseGet(() -> userRepository.save(new UserEntity(googleId, email, name, picture)));
 
         String token = jwtService.generateToken(user);
-        response.sendRedirect("http://localhost:4200/auth/callback?token=" + token);
+        response.sendRedirect(frontendBaseUrl + "/auth/callback?token=" + token);
     }
 }

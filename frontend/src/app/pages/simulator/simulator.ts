@@ -6,6 +6,7 @@ import { Nav } from '../../shared/components/nav/nav';
 import { RecommendationBadge } from '../../shared/components/recommendation-badge/recommendation-badge';
 import { TickerSelect } from '../../shared/components/ticker-select/ticker-select';
 import { SimulationResult } from '../../core/models/models';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-simulator',
@@ -418,7 +419,7 @@ export class SimulatorPage {
     this.loading.set(true);
     this.error.set('');
     this.result.set(null);
-    this.http.post<SimulationResult>('http://localhost:8080/api/simulate', {
+    this.http.post<SimulationResult>(`${environment.apiUrl}/simulate`, {
       amount: this.amount,
       tickers: this.selectedTickers
     }).subscribe({

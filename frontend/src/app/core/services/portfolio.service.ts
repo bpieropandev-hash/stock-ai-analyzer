@@ -5,8 +5,9 @@ import {
   AddPortfolioItemRequest, EvaluationItem,
   PortfolioItemResponse, PortfolioItemSaved, SimulationResult
 } from '../models/models';
+import { environment } from '../../../environments/environment';
 
-const API = 'http://localhost:8080/api/portfolio';
+const API = `${environment.apiUrl}/portfolio`;
 
 @Injectable({ providedIn: 'root' })
 export class PortfolioService {
