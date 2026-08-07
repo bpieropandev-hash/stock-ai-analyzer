@@ -17,7 +17,7 @@ Fonte canônica: [`docs/ROADMAP.md`](../ROADMAP.md) — mantido separado por já
 ## Concluído (2026-08-07)
 
 - Sprint 1 (fora da numeração P0-P3 original, priorização acordada com GPT): URLs configuráveis (CORS/OAuth2 redirect/API base do frontend), entidade `Stock` canônica substituindo ticker solto, JWT TTL 7 dias→24h + tratamento de 401 no frontend.
-- P2-10: tabela de auditoria completa (`analysis_audit`, prompt + raw response + raciocínio + explicação por dimensão). Ver `decisions.md`.
+- Sprint 2: P2-10 tabela de auditoria completa (`analysis_audit`, prompt + raw response + raciocínio + explicação por dimensão); P1-9 parcial — FinBERT-PT-BR real com fallback léxico automático (`PROMPT_VERSION` v2.3→v2.4). Ver `decisions.md`.
 
 ## Backlog aberto (ver `docs/ROADMAP.md` para detalhe técnico de cada item)
 
@@ -25,7 +25,7 @@ Fonte canônica: [`docs/ROADMAP.md`](../ROADMAP.md) — mantido separado por já
 - P1-6: corrigir `SectorClassifier` (mapeamentos yfinance errados).
 - P1-7: coletar EV/EBITDA, payout ratio, margem EBITDA.
 - P1-8: benchmark relativo IBOV/CDI no momentum.
-- P1-9: notícias melhores + avaliar FinBERT-PT-BR real (em andamento — Sprint 2, ver `docs/ROADMAP.md`).
+- P1-9: notícias melhores (corpo completo, dedup, filtro de data) — resto do item além do FinBERT, que já foi concluído 2026-08-07.
 
 **P2 — robustez e operação**
 - ~~P2-10: tabela de auditoria completa~~ — concluído 2026-08-07.

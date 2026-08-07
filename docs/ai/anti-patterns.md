@@ -33,7 +33,7 @@ Coisas encontradas no código que **não devem ser copiadas como padrão** para 
 
 - **`SectorClassifier` com mapeamentos yfinance→setor conhecidamente incorretos** (Utilities/Technology/Consumer Defensive mal mapeados) — afeta a qualidade das instruções de prompt e dos benchmarks para os setores errados. Corrigir é item de roadmap (P1), não fazer half-fix local sem also revisar `SectorPromptConfig`/`SectorBenchmarks`.
 - ~~**Sem tabela de auditoria**~~ Resolvido em 2026-08-07 — `analysis_audit`, ver `decisions.md`.
-- **`huggingface.token` configurado sem consumidor** — não assumir que há integração FinBERT ativa.
+- ~~**`huggingface.token` configurado sem consumidor**~~ Resolvido em 2026-08-07 — property Spring removida (código morto de verdade); consumidor real é `finbert_sentiment.py` (Python, lê `os.environ` direto). Ver `decisions.md`.
 
 ## Regra geral
 

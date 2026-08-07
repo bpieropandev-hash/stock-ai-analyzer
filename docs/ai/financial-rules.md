@@ -45,6 +45,6 @@ Sem benchmark explícito, os dois LLMs "inventam" médias setoriais de memória 
 
 Múltiplos do yfinance para B3 são descritos no código como "frequentemente errados ou defasados". ROE, ROA, margens, dívida/PL, receita e crescimentos vêm da CVM quando disponível; P/L, P/VPA e DY são recalculados usando o market cap do yfinance sobre os dados contábeis da CVM. Campo ausente na CVM mantém o valor do yfinance. Ticker fora do cadastro CVM (ETFs, BDRs) cai 100% para yfinance. A proveniência (`fundamentalsSource`, `statementDate`) é exposta e entra no prompt — não omitir isso ao adicionar novo dado fundamentalista.
 
-## Sentimento é sinal fraco, não é fato
+## Sentimento — força do sinal depende da fonte (desde 2026-08-07)
 
-O prompt rotula a seção de sentimento como "análise lexical de palavras-chave — sinal de confiança limitada" e instrui manter a dimensão próxima de 5 (neutro) quando há poucas notícias ou confiança baixa. Não tratar o score de sentimento como um dado forte em nenhuma lógica nova.
+O prompt rotula a seção de sentimento dinamicamente por `SentimentResult.source` (`buildSentimentText`): **FinBERT-PT-BR real** (classificador treinado, `finbert_sentiment.py`) é apresentado como "sinal confiável"; **léxico** (fallback automático sem `HUGGINGFACE_TOKEN` ou em falha, `analyze_sentiment.py`) continua "análise lexical de palavras-chave — sinal de confiança limitada". Em ambos os casos, o prompt instrui manter a dimensão próxima de 5 (neutro) quando há poucas notícias. Não tratar o score de sentimento como um dado forte em nenhuma lógica nova — mesmo com FinBERT, é só 5 manchetes por análise, não uma amostra robusta. Ver `decisions.md`.

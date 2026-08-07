@@ -137,7 +137,8 @@ stock-ai-analyzer/
 │   │   ├── fetch_technical_indicators.py
 │   │   ├── fetch_macro.py        # BCB SGS + Focus/Olinda + Brent/WTI (yfinance futures)
 │   │   ├── fetch_news.py         # Google News RSS
-│   │   ├── analyze_sentiment.py  # sentimento lexical (não é FinBERT)
+│   │   ├── analyze_sentiment.py  # sentimento léxico — fallback do FinBERT
+│   │   ├── finbert_sentiment.py  # FinBERT-PT-BR real via HF Inference API (2026-08-07)
 │   │   └── requirements.txt
 │   └── src/
 │       ├── main/java/com/stockai/
@@ -436,7 +437,7 @@ Construído inline em Java (`StockAnalysisService.buildPrompt`), **sem arquivos 
 3. Dados fundamentalistas (com tratamento especial para bancos — omite dívida/patrimônio quando não há conta de empréstimos no BPP).
 4. Contexto macroeconômico.
 5. Indicadores técnicos.
-6. Sentimento das manchetes (explicitamente rotulado como "análise lexical de palavras-chave — sinal de confiança limitada").
+6. Sentimento das manchetes (rótulo dinâmico desde 2026-08-07: "FinBERT-PT-BR... sinal confiável" quando o classificador real responde, "análise lexical de palavras-chave — sinal de confiança limitada" no fallback — ver `decisions.md`).
 7. Fundamentos históricos (contexto RAG).
 8. Contexto e instruções setoriais (`SectorPromptConfig`).
 9. Benchmarks do setor (dinâmicos via CVM+market cap, ou faixas estáticas de fallback).
@@ -444,7 +445,7 @@ Construído inline em Java (`StockAnalysisService.buildPrompt`), **sem arquivos 
 11. Bloco de calibração (usar a escala inteira, não deflacionar por fatores macro genéricos).
 12. Schema JSON de saída exigido, com campo `analise` (raciocínio livre) obrigatoriamente **primeiro**, antes dos scores — técnica de chain-of-thought induzido. Esse campo é descartado depois do parsing (não persistido).
 
-`PROMPT_VERSION` atual: **`v2.3`**. Incrementada a cada mudança de prompt — scores de versões diferentes não são comparáveis entre si (convenção documentada no próprio código e no CLAUDE.md).
+`PROMPT_VERSION` atual: **`v2.4`**. Incrementada a cada mudança de prompt — scores de versões diferentes não são comparáveis entre si (convenção documentada no próprio código e no CLAUDE.md).
 
 ### As 6 dimensões do score
 Fundamentos, Valuation, Regime/Momentum, Sentimento Institucional, Retorno ao Acionista, Gestão de Risco — cada uma 0–10, com explicação textual obrigatória.
@@ -459,7 +460,7 @@ Não são "tools" no sentido de function-calling do LLM — são chamadas HTTP f
 Google (Gemini), Groq, Ollama local (self-hosted). Ambos LLMs acessados pela mesma abstração `OpenAiChatModel` do LangChain4j (não há módulo Gemini/Groq nativo em uso).
 
 ### Limitações atuais (explícitas no código/roadmap)
-- **Sentimento não é FinBERT** — é análise lexical por dicionário de palavras-chave (pt/en, ~50 termos positivos/negativos, com negação e intensificador). Uma chave `huggingface.token` existe em config, mas **não foi encontrado nenhum código que a use hoje** — parece reservada para a evolução planejada ("Avaliar FinBERT-PT-BR real via HF Inference API", roadmap P1-9), ainda não implementada.
+- ~~**Sentimento não é FinBERT**~~ Resolvido em 2026-08-07 — `finbert_sentiment.py` chama FinBERT-PT-BR real (`lucas-leme/FinBERT-PT-BR`) via HF Inference API quando `HUGGINGFACE_TOKEN` está configurado; sem token ou em qualquer falha, cai automaticamente pro léxico (`analyze_sentiment.py`, mesma fórmula de agregação, mesmo schema). Ver `decisions.md`. **Não verificado ponta a ponta com token real nesta sessão** — endpoint exato precisa de confirmação do usuário.
 - **`SectorClassifier`** tem mapeamentos yfinance→setor conhecidamente incorretos (Utilities→deveria ser ENERGIA, Technology→INDUSTRIA, Consumer Defensive→VAREJO) — item de roadmap aberto (P1-6).
 - **Benchmarks setoriais estáticos** (fallback) são faixas hardcoded, usadas quando não há ≥3 pares líquidos com dado válido — podem ficar desatualizadas.
 - ~~**Sem tabela de auditoria completa**~~ Resolvido em 2026-08-07 — `analysis_audit` (FK 1:1 com `score_history`) persiste prompt exato, resposta bruta do LLM, o campo `"analise"` (raciocínio pedido no prompt mas descartado no parsing até então) e a `explicacao` de cada uma das 6 dimensões. Ver `decisions.md`.
@@ -483,7 +484,7 @@ Google (Gemini), Groq, Ollama local (self-hosted). Ambos LLMs acessados pela mes
 | **Gemini API** (Google) | API key (`GEMINI_API_KEY`), header Bearer via endpoint OpenAI-compatible | LLM primário do score de investimento | Por análise (com cache de 30 min) |
 | **Groq API** | API key (`GROQ_API_KEY`) | LLM fallback | Só quando Gemini falha |
 | **Ollama** (local, self-hosted) | Nenhuma (rede local) | Geração de embeddings (`nomic-embed-text`) | Por indexação (fundamentos/análise/histórico) e por busca RAG |
-| **HuggingFace** | Token configurado (`HUGGINGFACE_TOKEN`) | **Reservado, não usado no código atual encontrado** — provavelmente para FinBERT-PT-BR futuro | N/A hoje |
+| **HuggingFace Inference API** | Token (`HUGGINGFACE_TOKEN`) — só no ambiente do processo do sidecar Python, `.env` não chega lá automaticamente | FinBERT-PT-BR real (`lucas-leme/FinBERT-PT-BR`) pro sentimento das manchetes, desde 2026-08-07 | Opcional — sem token ou em falha, cai pro léxico (`analyze_sentiment.py`) automaticamente |
 
 ---
 
@@ -507,8 +508,8 @@ Google (Gemini), Groq, Ollama local (self-hosted). Ambos LLMs acessados pela mes
 - Correção do `SectorClassifier` (mapeamentos yfinance errados) — P1-6.
 - Coleta de EV/EBITDA, payout ratio, margem EBITDA — P1-7.
 - Benchmark relativo a IBOV/CDI no momentum — P1-8.
-- Notícias melhores (corpo completo, dedup, filtro de data) + avaliação de FinBERT-PT-BR real — P1-9.
-- Tabela de auditoria completa (prompt + output bruto por análise) — P2-10.
+- Notícias melhores (corpo completo, dedup, filtro de data) — P1-9 parcial; avaliação de FinBERT-PT-BR real ✅ concluída em 2026-08-07 (ver `decisions.md`).
+- ~~Tabela de auditoria completa (prompt + output bruto por análise) — P2-10.~~ ✅ concluído em 2026-08-07.
 - `@ControllerAdvice` (controllers hoje engolem exceção e retornam 500 sem corpo) — P2-11.
 - Rate limiting nos endpoints públicos — P2-12.
 - ~~Flyway em vez de `ddl-auto: update` — P2-13.~~ Concluído em 2026-08-06.
@@ -622,7 +623,7 @@ Fonte: `docs/ROADMAP.md` (estado em 2026-06-12) + lacunas adicionais identificad
 - Corrigir `SectorClassifier` (mapeamentos Utilities/Technology/Consumer Defensive errados; criar SectorTypes UTILITIES/TECNOLOGIA/CONSUMO_DEFENSIVO).
 - Coletar EV/EBITDA, payout ratio, margem EBITDA em `fetch_fundamentals.py`.
 - Benchmark relativo a IBOV/CDI no momentum.
-- Melhorar notícias (corpo completo, dedup, filtro de data) e avaliar FinBERT-PT-BR real via HF Inference API (token já configurado, não usado).
+- Melhorar notícias (corpo completo, dedup, filtro de data). ~~Avaliar FinBERT-PT-BR real via HF Inference API~~ concluído 2026-08-07.
 
 ### Médio prazo
 - ~~Tabela de auditoria completa (snapshot de input + prompt + output bruto por análise).~~ Concluído em 2026-08-07.
@@ -657,7 +658,7 @@ Fonte: `docs/ROADMAP.md` (estado em 2026-06-12) + lacunas adicionais identificad
 
 (Já pensadas — presentes no roadmap ou em comentários de código — mas não implementadas ainda)
 
-- Sentimento institucional via FinBERT-PT-BR real (Hugging Face Inference API) em vez de dicionário lexical.
+- ~~Sentimento institucional via FinBERT-PT-BR real (Hugging Face Inference API) em vez de dicionário lexical.~~ Implementado em 2026-08-07 (`decisions.md`) — falta só validação com token real do usuário.
 - Substituir a dimensão "Sentimento Institucional" por dados institucionais de verdade: fluxo estrangeiro diário real da B3, short interest, aluguel de ações (BTC).
 - Calendário de resultados/eventos corporativos para contextualizar a validade temporal de uma análise (véspera de balanço tem peso diferente).
 - Curva DI futuro como proxy de custo de capital, complementando Selic spot + Focus.
@@ -820,7 +821,7 @@ O score é composto por 6 dimensões independentes, cada uma com peso e explica�
 
 - ~~**Não existe entidade "Stock"/"Ticker" canônica no sistema.**~~ Resolvido em 2026-08-07 — `score_history`, `stock_alerts` e `portfolio_items` referenciam `Stock` por FK (ver `decisions.md`). A migration de backfill revelou um bug real: `portfolio_items`/`stock_alerts` guardavam ticker sem sufixo (`PETR4`) e `score_history` guardava com sufixo `.SA` do Yahoo (`PETR4.SA`) — mesmo ativo, formatos diferentes, nunca detectado por falta de FK. `TickerNormalizer` agora é o único ponto de normalização. Embeddings pgvector continuam com `ticker` como metadado de string solta (mecanismo do LangChain4j, sem FK possível) — fora do escopo dessa migration. Tickers delistados/renomeados na B3 continuam sem tratamento centralizado (script de benchmarks setoriais trata ad-hoc) — não resolvido por esta mudança.
 - **A flag de "ano eleitoral" no prompt é hardcoded como `(ano atual - 2026) % 4 == 0`** — ou seja, assume 2026 como ano-âncora do ciclo eleitoral brasileiro. Correto hoje, mas é uma constante mágica que vale a pena documentar/revisar se o código sobreviver a vários ciclos.
-- **`HUGGINGFACE_TOKEN` está configurado em `application.yml` mas nenhum código consumidor foi encontrado** — parece ser preparação antecipada para a evolução de sentimento (FinBERT-PT-BR) do roadmap, ainda não conectada.
+- ~~**`HUGGINGFACE_TOKEN` está configurado em `application.yml` mas nenhum código consumidor foi encontrado**~~ Resolvido em 2026-08-07 — `finbert_sentiment.py` (Python) lê a variável direto via `os.environ`. A property Spring `huggingface.token` (`application.yml`) foi removida por ser código morto de verdade: nunca teve consumidor Java e não é o caminho que o Python usa — o sidecar precisa da env var exportada no próprio shell que o sobe, não do `.env` do Spring.
 - **Dependências de WebSocket (`@stomp/stompjs`, `sockjs-client`) seguem no `package.json` do frontend sem uso real** — `StockService` documenta em comentário que abandonou WebSocket porque `/ws` retornava 404, e migrou para polling HTTP a cada 30s. Seguro remover se confirmado que não há plano de retomar STOMP.
 - **`SimulatorPage` no frontend não usa `PortfolioService`** — injeta `HttpClient` diretamente e chama `/api/simulate`, um endpoint diferente do usado por `PortfolioService.suggestAllocation()` (`/api/portfolio/suggest-allocation`). Vale confirmar com o time se são fluxos propositalmente distintos (simulação "livre" vs. simulação "da carteira atual") ou uma inconsistência a unificar.
 - **Componente `ScoreBar` parece não utilizado** pelas páginas atuais (cada página reimplementa sua própria barra de score inline) — candidato a dead code ou a uma futura padronização.

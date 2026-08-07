@@ -25,7 +25,18 @@ Sprint 1 completo (Flyway → URLs configuráveis → Stock → JWT).
 - Verificado: migration aplicada contra Postgres real, `ddl-auto: validate` passou, suíte 14/14 verde. **Limitação**: sem credenciais de LLM válidas nesta sessão, não foi possível exercitar uma análise real ponta a ponta — gravação verificada por leitura de código e schema, não por `POST /analysis` real.
 - Ver `decisions.md` para o desenho completo.
 
-Próximo: **FinBERT real** (Sprint 2, item 2) — precisa de pesquisa de modelo antes de implementar (não inventar nome de modelo no Hugging Face Hub).
+## ✅ Concluído (2026-08-07) — FinBERT-PT-BR real com fallback léxico (P1-9 parcial, Sprint 2 item 2)
+
+`finbert_sentiment.py` (novo) chama **FinBERT-PT-BR** (`lucas-leme/FinBERT-PT-BR`, Apache-2.0, treinado em 1,4M notícias financeiras PT-BR — confirmado real via busca antes de implementar) na HF Inference API antes do léxico existente (`analyze_sentiment.py`). Sem `HUGGINGFACE_TOKEN` ou em qualquer falha (timeout 8s, erro HTTP), cai automaticamente pro léxico — nunca bloqueia a análise.
+
+- `_aggregate()` extraído de `analyze_sentiment.analyze()` — fórmula única compartilhada entre os dois caminhos, mesma escala 0-10.
+- `SentimentResult` (Java) ganhou campo `source` (`"finbert"`/`"lexical"`/`"unavailable"`) — `buildSentimentText` usa isso pro caveat certo no prompt (FinBERT = "sinal confiável", léxico = "confiança limitada"). **`PROMPT_VERSION` v2.3 → v2.4**.
+- Fallback via spawn de processo (sidecar fora do ar) continua só léxico — decisão deliberada, já é caminho degradado.
+- `huggingface.token` (property Spring morta, nunca teve consumidor Java) removida de `application.yml` — `HUGGINGFACE_TOKEN` é lido direto do `os.environ` pelo processo Python, precisa ser exportado no shell que sobe o sidecar (não vem do `.env`).
+- Verificado: `mvn clean compile`/testes 14/14, sintaxe Python válida, smoke test do léxico refatorado (mesmo schema + `source`), `finbert_sentiment.classify()` retorna `None` sem token (fallback confirmado). **Não verificado ponta a ponta com token real** — endpoint exato (`router.huggingface.co/hf-inference/models/{id}`) precisa de confirmação do usuário com `HUGGINGFACE_TOKEN` de verdade.
+- Ver `decisions.md` para o desenho completo.
+
+Sprint 2 completo (auditoria + FinBERT). Reranker de RAG segue adiado por acordo mútuo com o GPT. Próximo: Sprint 3 (backtesting visual, score confidence — timeline da empresa bloqueada por gap de coleta de dado).
 
 ## ✅ Concluído (2026-08-07) — URLs configuráveis (Sprint 1, item 2)
 
@@ -124,7 +135,7 @@ Próximo: **FinBERT real** (Sprint 2, item 2) — precisa de pesquisa de modelo 
 6. **Corrigir `SectorClassifier`** — Utilities→ENERGIA, Technology→INDUSTRIA, Consumer Defensive→VAREJO geram instruções setoriais erradas; criar SectorTypes próprios (UTILITIES, TECNOLOGIA, CONSUMO_DEFENSIVO).
 7. **EV/EBITDA, payout ratio, margem EBITDA** no `fetch_fundamentals.py` — o prompt setorial de LOGISTICA pede EBITDA mas o dado nunca é fornecido.
 8. **IBOV/CDI como benchmark relativo** no momentum — "a ação caiu ou o mercado todo caiu?"; adicionar retorno relativo ao IBOV em `fetch_technical_indicators.py`.
-9. **Notícias melhores** — buscar corpo (não só título), dedup, filtro de data, remover sufixo do veículo ("... - InfoMoney") que polui o léxico. Avaliar FinBERT-PT-BR real via HF Inference API.
+9. **Notícias melhores** — buscar corpo (não só título), dedup, filtro de data, remover sufixo do veículo ("... - InfoMoney") que polui o léxico. ~~Avaliar FinBERT-PT-BR real via HF Inference API.~~ ✅ concluído em 2026-08-07 (ver seção acima) — resto do item (corpo/dedup/filtro) continua aberto.
 
 ### P2 — robustez e operação
 10. ~~**Tabela de auditoria completa** — persistir snapshot de input + prompt + output bruto por análise.~~ ✅ concluído em 2026-08-07 (ver seção acima).

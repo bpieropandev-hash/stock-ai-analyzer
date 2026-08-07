@@ -30,15 +30,17 @@ Gemini falha (qualquer exceção: rede, JSON malformado, dimensão ausente)
 
 Dados opcionais (macro, notícias, indicadores técnicos) degradam graciosamente via `safeGet` — só fundamentos é obrigatório, falha aí aborta a análise.
 
-## Sentimento — NÃO é FinBERT
+## Sentimento — FinBERT real com fallback léxico (desde 2026-08-07)
 
-Análise **lexical** por dicionário de palavras-chave pt/en (~50 termos positivos/negativos, com negação e intensificador), implementada em `analyze_sentiment.py`. Score normalizado 0–10, 5.0 = neutro. Explicitamente rotulado no prompt como "sinal de confiança limitada".
+`sidecar_app.py` (`/sentiment`) tenta **FinBERT-PT-BR** (`lucas-leme/FinBERT-PT-BR`, classificador real via HF Inference API, `finbert_sentiment.py`) primeiro; sem `HUGGINGFACE_TOKEN` ou em qualquer falha (timeout 8s, erro HTTP, resposta inesperada) cai automaticamente pro **léxico** (`analyze_sentiment.py`, dicionário de palavras-chave pt/en, ~50 termos, com negação e intensificador — o que já existia antes). Ambos os caminhos produzem o mesmo schema via `_aggregate` compartilhado (score 0–10, 5.0 = neutro, `distribution`, `confidence`) — comparável independente da fonte.
 
-`huggingface.token` está configurado em `application.yml` mas **nenhum código consumidor foi encontrado** — é preparação antecipada para uma futura integração FinBERT-PT-BR real (ver `roadmap.md`), ainda não conectada. Não assumir que FinBERT já está em uso.
+`SentimentResult` (Java) ganhou o campo `source` (`"finbert"`/`"lexical"`/`"unavailable"`) — o prompt (`buildSentimentText`) usa esse campo pra escolher o caveat certo: FinBERT é apresentado como "sinal confiável", léxico como "sinal de confiança limitada". Nunca assumir qual fonte rodou sem checar `source` — depende só de `HUGGINGFACE_TOKEN` estar no ambiente do processo do sidecar (não é carregado do `.env` automaticamente, ver `decisions.md`).
+
+Fallback via spawn de processo (`PythonScriptRunner`, sidecar fora do ar) continua **só léxico** — decisão deliberada, não estendida ao FinBERT (já é caminho degradado).
 
 ## PROMPT_VERSION
 
-Constante `StockAnalysisService.PROMPT_VERSION`, hoje `"v2.3"`. **Incrementar sempre que o texto do prompt mudar** — scores de versões diferentes não são comparáveis entre si (o histórico em `score_history` guarda `promptVersion` por linha justamente por isso).
+Constante `StockAnalysisService.PROMPT_VERSION`, hoje `"v2.4"` (bump em 2026-08-07 — caveat de sentimento dinâmico por fonte). **Incrementar sempre que o texto do prompt mudar** — scores de versões diferentes não são comparáveis entre si (o histórico em `score_history` guarda `promptVersion` por linha justamente por isso).
 
 ## Limitações conhecidas
 

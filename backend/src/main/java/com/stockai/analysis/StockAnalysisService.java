@@ -40,7 +40,7 @@ public class StockAnalysisService {
     private static final String CACHE_PREFIX = "analysis:";
 
     // Incrementar sempre que o prompt mudar — scores de versões diferentes não são comparáveis
-    static final String PROMPT_VERSION = "v2.3";
+    static final String PROMPT_VERSION = "v2.4";
 
     private static final String DISCLAIMER =
             "Esta análise é gerada por IA e não constitui recomendação de investimento. " +
@@ -256,19 +256,19 @@ public class StockAnalysisService {
     /** Retorna score neutro (5.0) se a lista estiver vazia ou o script falhar. */
     private SentimentResult fetchSentiment(List<NewsItem> news) {
         if (news == null || news.isEmpty()) {
-            return new SentimentResult(5.0, 0, 0, 0, 0.0);
+            return new SentimentResult(5.0, 0, 0, 0, 0.0, "unavailable");
         }
         try {
             List<String> titles = news.stream()
                     .map(NewsItem::title)
                     .filter(t -> t != null && !t.isBlank())
                     .collect(Collectors.toList());
-            if (titles.isEmpty()) return new SentimentResult(5.0, 0, 0, 0, 0.0);
+            if (titles.isEmpty()) return new SentimentResult(5.0, 0, 0, 0, 0.0, "unavailable");
 
             // JSON como corpo (sidecar) ou stdin (script) — argv corrompe aspas no Windows
             String titlesJson = objectMapper.writeValueAsString(titles);
             String output = pythonGateway.sentiment(titlesJson);
-            if (output.isBlank()) return new SentimentResult(5.0, 0, 0, news.size(), 0.0);
+            if (output.isBlank()) return new SentimentResult(5.0, 0, 0, news.size(), 0.0, "unavailable");
 
             JsonNode root = objectMapper.readTree(output);
             return new SentimentResult(
@@ -276,11 +276,12 @@ public class StockAnalysisService {
                     root.path("distribution").path("positive").asInt(0),
                     root.path("distribution").path("negative").asInt(0),
                     root.path("distribution").path("neutral").asInt(0),
-                    root.path("confidence").asDouble(0.0)
+                    root.path("confidence").asDouble(0.0),
+                    root.path("source").asText("lexical")
             );
         } catch (Exception e) {
-            log.warn("Falha ao calcular sentimento lexical: {}", e.getMessage());
-            return new SentimentResult(5.0, 0, 0, 0, 0.0);
+            log.warn("Falha ao calcular sentimento: {}", e.getMessage());
+            return new SentimentResult(5.0, 0, 0, 0, 0.0, "unavailable");
         }
     }
 
@@ -464,11 +465,18 @@ public class StockAnalysisService {
     }
 
     private String buildSentimentText(SentimentResult s) {
-        // Honestidade com o modelo: é análise lexical de manchetes, não um classificador treinado
+        // Honestidade com o modelo: a força do sinal depende de qual método classificou
+        // as manchetes — FinBERT é um classificador treinado, léxico é heurística de
+        // palavras-chave (mais fraco), "unavailable" não teve manchete nenhuma pra avaliar.
+        String caveat = switch (s.source()) {
+            case "finbert" -> "FinBERT-PT-BR, classificador treinado em notícias financeiras — sinal confiável";
+            case "lexical" -> "análise lexical de palavras-chave — sinal de confiança limitada";
+            default -> "sem notícias suficientes para avaliar — não usar como sinal";
+        };
         return """
-                SENTIMENTO DAS MANCHETES (análise lexical de palavras-chave — sinal de confiança limitada):
+                SENTIMENTO DAS MANCHETES (%s):
                 Score: %.2f/10 | Distribuição: %d positivas, %d negativas, %d neutras | Confiança média: %.2f"""
-                .formatted(s.score(), s.positiveCount(), s.negativeCount(), s.neutralCount(), s.confidence());
+                .formatted(caveat, s.score(), s.positiveCount(), s.negativeCount(), s.neutralCount(), s.confidence());
     }
 
     private String buildFundamentalsText(StockFundamentals f, SectorType sector) {

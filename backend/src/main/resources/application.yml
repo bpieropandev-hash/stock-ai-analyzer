@@ -80,9 +80,6 @@ python:
     price-history-path: ${PYTHON_PRICE_HISTORY_PATH:scripts/fetch_price_history.py}
     sector-benchmarks-path: ${PYTHON_SECTOR_BENCHMARKS_PATH:scripts/fetch_sector_benchmarks.py}
 
-huggingface:
-  token: ${HUGGINGFACE_TOKEN:}
-
 ollama:
   base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
   timeout-minutes: 5

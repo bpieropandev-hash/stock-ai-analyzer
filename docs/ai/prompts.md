@@ -2,7 +2,7 @@
 
 Construído inline em Java (`StockAnalysisService.buildPrompt`) — **sem arquivos de template externos** (`.txt`/`.st`/`.md`). Se for extrair para template, avaliar impacto em `PROMPT_VERSION` e em testes.
 
-`PROMPT_VERSION` atual: **`v2.3`**. Ver `ai.md` para a regra de quando incrementar.
+`PROMPT_VERSION` atual: **`v2.4`**. Ver `ai.md` para a regra de quando incrementar.
 
 ## Estrutura do prompt, em ordem
 
@@ -11,7 +11,7 @@ Construído inline em Java (`StockAnalysisService.buildPrompt`) — **sem arquiv
 3. Dados fundamentalistas (com omissão de dívida/patrimônio para bancos — ver `financial-rules.md`).
 4. Contexto macroeconômico (Selic, IPCA, câmbio, Focus, Brent/WTI).
 5. Indicadores técnicos (RSI, MACD, Bollinger, sinal composto).
-6. Sentimento das manchetes — rotulado explicitamente como "análise lexical de palavras-chave — sinal de confiança limitada".
+6. Sentimento das manchetes — desde `v2.4`, o caveat é dinâmico por fonte (`buildSentimentText`): FinBERT-PT-BR real (sinal confiável) quando `HUGGINGFACE_TOKEN` está configurado e a chamada funciona, senão "análise lexical de palavras-chave — sinal de confiança limitada" (fallback automático), senão "sem notícias suficientes" quando não há manchete nenhuma. Ver `decisions.md`.
 7. Fundamentos históricos (contexto RAG, ver `rag.md`).
 8. Contexto e instruções setoriais (`SectorPromptConfig`).
 9. Benchmarks do setor (dinâmico via CVM+market cap, ou faixa estática de fallback).
@@ -51,7 +51,7 @@ Construído inline em Java (`StockAnalysisService.buildPrompt`) — **sem arquiv
 }
 ```
 
-`analise` é usado só para induzir raciocínio antes do score — **é descartado no parsing**, não é persistido. `resumo` e `simpleSummary` são extraídos e persistidos.
+`analise` induz raciocínio antes do score. Desde 2026-08-07, é extraído por `AnalysisParser` (`ParsedAnalysis.reasoning`) e persistido em `analysis_audit` — mas continua **fora** de `AnalysisResponse`/API/frontend (só auditoria). `resumo` e `simpleSummary` são extraídos e persistidos (`resumo` também vai pra `analysis_audit`; `simpleSummary` só pra `AnalysisResponse`, não persistido).
 
 ## Instruções setoriais (`SectorPromptConfig`, excerto — 11 setores no total)
 

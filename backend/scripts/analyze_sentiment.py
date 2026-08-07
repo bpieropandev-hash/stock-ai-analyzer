@@ -155,24 +155,23 @@ def _fallback(n_texts: int = 0, reason: str = "") -> dict:
         "sentimentScore": 5.0,
         "distribution": {"positive": 0, "negative": 0, "neutral": n_texts},
         "confidence": 0.0,
+        "source": "unavailable",
     }
     if reason:
         fb["fallbackReason"] = reason
     return fb
 
 
-def analyze(texts: list[str]) -> dict:
-    if not texts:
-        return _fallback(0, "no_input")
-
-    results = [_score_text(t) for t in texts]
-    labels = [r[0] for r in results]
-    confidences = [r[1] for r in results]
-
+def _aggregate(labels: list[str], confidences: list[float]) -> dict:
+    """
+    Combina (label, confidence) por texto num resultado agregado. Compartilhada
+    entre o caminho léxico e o FinBERT (finbert_sentiment.py) — mesma fórmula,
+    mesma escala 0-10, pra o score continuar comparável independente da fonte.
+    """
     pos_n = labels.count("positive")
     neg_n = labels.count("negative")
     neu_n = labels.count("neutral")
-    total = len(results)
+    total = len(labels)
 
     pos_conf = [confidences[i] for i, l in enumerate(labels) if l == "positive"]
     neg_conf = [confidences[i] for i, l in enumerate(labels) if l == "negative"]
@@ -189,6 +188,19 @@ def analyze(texts: list[str]) -> dict:
         "distribution": {"positive": pos_n, "negative": neg_n, "neutral": neu_n},
         "confidence": avg_confidence,
     }
+
+
+def analyze(texts: list[str]) -> dict:
+    if not texts:
+        return _fallback(0, "no_input")
+
+    results = [_score_text(t) for t in texts]
+    labels = [r[0] for r in results]
+    confidences = [r[1] for r in results]
+
+    result = _aggregate(labels, confidences)
+    result["source"] = "lexical"
+    return result
 
 
 if __name__ == "__main__":

@@ -19,7 +19,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 import cvm_data
-from analyze_sentiment import analyze, _fallback
+from analyze_sentiment import _aggregate, _fallback, analyze
+from finbert_sentiment import classify as finbert_classify
 from fetch_fundamentals import fetch_fundamentals
 from fetch_historical_fundamentals import fetch_historical
 from fetch_macro import fetch_macro
@@ -82,6 +83,17 @@ def news(ticker: str) -> JSONResponse:
 def sentiment(texts: list[str]) -> JSONResponse:
     if not texts:
         return JSONResponse(_fallback(0, "no_input"))
+
+    # FinBERT real primeiro (classificador treinado); sem HUGGINGFACE_TOKEN ou
+    # em qualquer falha (timeout, erro HTTP), finbert_classify retorna None e
+    # cai pro léxico — nunca derruba a análise por causa do sentimento.
+    finbert_result = finbert_classify(texts)
+    if finbert_result is not None:
+        labels, confidences = finbert_result
+        result = _aggregate(labels, confidences)
+        result["source"] = "finbert"
+        return JSONResponse(result)
+
     try:
         return JSONResponse(analyze(texts))
     except Exception as exc:

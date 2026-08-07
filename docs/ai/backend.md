@@ -65,7 +65,7 @@ Repositórios: só derived queries (nenhum `@Query` customizado no projeto todo)
 
 ## Configuração (`application.yml`)
 
-Arquivo único, sem profiles (`application-dev.yml`/`application-prod.yml` não existem). Blocos: `spring.datasource`, `spring.jpa`, `spring.data.redis`, `spring.task.scheduling.pool.size: 2`, `spring.security.oauth2.client.registration.google`, `pgvector.*`, `python.sidecar.*` + `python.script.*` (paths dos scripts), `huggingface.token` (configurado, **sem consumidor no código atual**), `ollama.*`, `gemini.api-key`, `groq.api-key`, `embedding.store.table`, `jwt.secret` (sem default — falha no boot se ausente).
+Arquivo único, sem profiles (`application-dev.yml`/`application-prod.yml` não existem). Blocos: `spring.datasource`, `spring.jpa`, `spring.data.redis`, `spring.task.scheduling.pool.size: 2`, `spring.security.oauth2.client.registration.google`, `pgvector.*`, `python.sidecar.*` + `python.script.*` (paths dos scripts), `ollama.*`, `gemini.api-key`, `groq.api-key`, `embedding.store.table`, `jwt.secret` (sem default — falha no boot se ausente). `huggingface.token` **removido em 2026-08-07** — nunca teve consumidor Java; `HUGGINGFACE_TOKEN` (FinBERT, ver `decisions.md`) é lido direto do `os.environ` pelo sidecar Python, fora do Spring.
 
 `server.port` não é setado — default 8080. Desde 2026-08-07, `app.cors.allowed-origins` (`CORS_ALLOWED_ORIGINS`) e `app.frontend.base-url` (`FRONTEND_BASE_URL`) externalizam CORS e o redirect pós-OAuth2 — default continua `http://localhost:4200` em dev. Ver `decisions.md`.
 
