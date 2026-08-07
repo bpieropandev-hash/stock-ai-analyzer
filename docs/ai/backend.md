@@ -54,6 +54,7 @@ Entidades JPA (detalhe completo em `docs/PROJECT_DOCUMENTATION.md` seção 5):
 - `portfolio_items` (`PortfolioItem`) — `@ManyToOne` para `UserEntity` (LAZY) e `Stock` (EAGER), unique `(user_id, stock_id)`.
 - `score_history` (`ScoreHistoryEntity`) — `@ManyToOne` EAGER para `Stock`, índice composto `(stock_id, analysis_date)`.
 - `stock_alerts` (`StockAlertEntity`) — `@ManyToOne` EAGER para `Stock`, sem índice além da PK/FK.
+- `analysis_audit` (`AnalysisAudit`) — desde 2026-08-07 (ver `decisions.md`). FK simples `scoreHistoryId` (não associação JPA — tabela write-heavy/read-rare). Guarda prompt exato, resposta bruta do LLM, `reasoning` (campo `"analise"`, pedido no prompt mas não extraído até essa mudança) e `explicacao` das 6 dimensões. Escrita best-effort via `AnalysisAuditService`.
 - `stock_embeddings` — **não é entidade JPA**, criada/gerida pelo `PgVectorEmbeddingStore` do LangChain4j (`createTable(true)`), fora do controle do Hibernate. Metadados `ticker`/`date`/`type` como colunas dedicadas (`COLUMN_PER_KEY`) — continua string solta, sem FK possível pro mecanismo de vetor; deliberadamente fora do escopo da entidade `Stock`.
 
 `Stock` é EAGER nas 3 entidades (não LAZY como `PortfolioItem.user`) — é uma tabela pequena e o ticker é lido em praticamente todo call site; LAZY exigiria `@Transactional` em métodos que hoje não têm (ex.: `ScoreAlertService.getAlertsByTicker`), risco real de `LazyInitializationException`.

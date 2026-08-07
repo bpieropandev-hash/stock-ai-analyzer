@@ -24,11 +24,12 @@ public class ScoreHistoryService {
         this.stockRepository = stockRepository;
     }
 
+    /** Retorna a entidade salva (para AnalysisAuditService linkar por FK), ou null se a gravação falhou. */
     @Transactional
-    public void saveScore(StockAnalysis analysis, String modelUsed, String promptVersion) {
+    public ScoreHistoryEntity saveScore(StockAnalysis analysis, String modelUsed, String promptVersion) {
         try {
             Stock stock = stockRepository.findOrCreate(analysis.ticker());
-            repository.save(new ScoreHistoryEntity(
+            ScoreHistoryEntity saved = repository.save(new ScoreHistoryEntity(
                     stock,
                     analysis.analysisDate(),
                     analysis.scoreGeral(),
@@ -43,8 +44,10 @@ public class ScoreHistoryService {
             ));
             log.info("Score history salvo — ticker={} data={} modelo={}",
                     analysis.ticker(), analysis.analysisDate(), modelUsed);
+            return saved;
         } catch (Exception e) {
             log.warn("Falha ao salvar score history para {}: {}", analysis.ticker(), e.getMessage());
+            return null;
         }
     }
 

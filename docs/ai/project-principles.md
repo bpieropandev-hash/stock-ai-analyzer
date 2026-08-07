@@ -13,7 +13,7 @@ Toda alteração deve melhorar ao menos um destes pilares. Nunca sacrificar um p
 3. **Performance** — resposta rápida sem custo desnecessário de LLM/dado externo (cache, single-flight, sidecar persistente).
 4. **Escalabilidade** — decisão de hoje não pode travar o crescimento de amanhã sem que isso seja um trade-off consciente e documentado (ex.: lock em memória por ticker, ver `decisions.md`).
 5. **Confiabilidade** — degradação graciosa sempre que possível (fallback de LLM, fallback de fonte de dado, fallback de benchmark); falha silenciosa nunca — erro visível é melhor que dado errado disfarçado de certo.
-6. **Auditabilidade** — qualquer score deve poder ser explicado e, idealmente, reconstruído (hoje limitado pela ausência de tabela de auditoria completa — roadmap P2-10).
+6. **Auditabilidade** — qualquer score deve poder ser explicado e reconstruído. Desde 2026-08-07, `analysis_audit` persiste prompt exato, resposta bruta e explicação por dimensão (ver `decisions.md`) — antes só `modelUsed`/`promptVersion` existiam.
 
 ## Como isso muda decisão de implementação
 

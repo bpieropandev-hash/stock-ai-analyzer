@@ -18,7 +18,7 @@ import java.time.LocalDate;
 @Component
 public class AnalysisParser {
 
-    public record ParsedAnalysis(StockAnalysis analysis, String simpleSummary) {}
+    public record ParsedAnalysis(StockAnalysis analysis, String simpleSummary, String reasoning) {}
 
     private final ObjectMapper objectMapper;
 
@@ -47,7 +47,13 @@ public class AnalysisParser {
                 scoreGeral,
                 root.path("resumo").asText("N/D")
         );
-        return new ParsedAnalysis(analysis, root.path("simpleSummary").asText("Análise indisponível."));
+        // "analise" é pedido no prompt (raciocínio antes de pontuar) mas não é
+        // exposto na API — só vai pra auditoria (AnalysisAuditService).
+        return new ParsedAnalysis(
+                analysis,
+                root.path("simpleSummary").asText("Análise indisponível."),
+                root.path("analise").asText("N/D")
+        );
     }
 
     /** Média aritmética das 6 dimensões, arredondada a 1 casa decimal. */

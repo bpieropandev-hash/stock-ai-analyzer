@@ -45,5 +45,5 @@ Constante `StockAnalysisService.PROMPT_VERSION`, hoje `"v2.3"`. **Incrementar se
 - `SectorClassifier` tem mapeamentos yfinance→setor incorretos (Utilities deveria ir para ENERGIA, Technology para INDUSTRIA, Consumer Defensive para VAREJO) — ver `roadmap.md` P1.
 - Sem coleta de EV/EBITDA, payout ratio, margem EBITDA — o prompt setorial de LOGISTICA pede EBITDA e o dado nunca chega.
 - Sem benchmark relativo a IBOV/CDI no momentum — não distingue "a ação caiu" de "o mercado caiu".
-- Sem tabela de auditoria completa (prompt + resposta bruta por análise) — só `modelUsed`/`promptVersion` são persistidos, dificultando reconstruir por que um score específico saiu de um jeito.
+- ~~Sem tabela de auditoria completa~~ Resolvido em 2026-08-07 — `analysis_audit` persiste prompt + resposta bruta + raciocínio (`"analise"`) + explicação por dimensão, FK 1:1 com `score_history`. Ver `decisions.md`. Descoberta incidental: o campo `"analise"` já era pedido no prompt mas `AnalysisParser` nunca o extraía — corrigido junto.
 - Modelos hospedados por nome, não por hash — o provedor pode trocar o modelo por trás de `gemini-2.5-flash`/`qwen/qwen3-32b` sem aviso, quebrando comparabilidade histórica mesmo com `PROMPT_VERSION` fixo.

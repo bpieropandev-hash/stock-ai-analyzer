@@ -233,6 +233,20 @@ Criada sob demanda (`StockRepository.findOrCreate`) na primeira vez que um ticke
 
 Sem índice declarado além da PK e da FK.
 
+**`analysis_audit`** (`AnalysisAudit`) — desde 2026-08-07 (ver `decisions.md`)
+| Campo | Coluna |
+|---|---|
+| id | BIGINT, PK auto-increment |
+| scoreHistoryId | score_history_id (FK simples pra `score_history.id`, não `@ManyToOne` mapeado — unique, 1:1) |
+| promptFull | prompt_full (TEXT, not null) — string exata enviada ao LLM |
+| rawResponse | raw_response (TEXT, not null) — resposta exata antes de sanitizar/parsear |
+| reasoning | reasoning (TEXT) — campo `"analise"` do JSON, pedido no prompt mas não extraído por `AnalysisParser` antes desta mudança |
+| resumo | resumo (TEXT) |
+| explicacaoFundamentos...explicacaoGestaoRisco | 6 colunas TEXT, uma por dimensão |
+| createdAt | created_at |
+
+Escrita best-effort (`AnalysisAuditService`, try/catch como `ScoreHistoryService`/`ScoreAlertService`) — falha na auditoria nunca derruba a análise já gerada. Sem endpoint de leitura ainda — consulta é via SQL direto; expor via API é decisão futura, não feita nesta tarefa.
+
 **`stock_embeddings`** (não-JPA, gerida pelo LangChain4j `PgVectorEmbeddingStore`)
 - Vetores de 768 dimensões (nomic-embed-text).
 - Metadados armazenados como **colunas dedicadas** (`MetadataStorageMode.COLUMN_PER_KEY`): `ticker TEXT`, `date TEXT`, `type TEXT` (`type` ∈ `fundamentals`, `analysis`, `historical_fundamentals`).
@@ -448,7 +462,7 @@ Google (Gemini), Groq, Ollama local (self-hosted). Ambos LLMs acessados pela mes
 - **Sentimento não é FinBERT** — é análise lexical por dicionário de palavras-chave (pt/en, ~50 termos positivos/negativos, com negação e intensificador). Uma chave `huggingface.token` existe em config, mas **não foi encontrado nenhum código que a use hoje** — parece reservada para a evolução planejada ("Avaliar FinBERT-PT-BR real via HF Inference API", roadmap P1-9), ainda não implementada.
 - **`SectorClassifier`** tem mapeamentos yfinance→setor conhecidamente incorretos (Utilities→deveria ser ENERGIA, Technology→INDUSTRIA, Consumer Defensive→VAREJO) — item de roadmap aberto (P1-6).
 - **Benchmarks setoriais estáticos** (fallback) são faixas hardcoded, usadas quando não há ≥3 pares líquidos com dado válido — podem ficar desatualizadas.
-- **Sem tabela de auditoria completa** — hoje só se persiste `modelUsed`/`promptVersion`, não o prompt e a resposta bruta por análise (roadmap P2-10), dificultando debug retroativo de um score específico.
+- ~~**Sem tabela de auditoria completa**~~ Resolvido em 2026-08-07 — `analysis_audit` (FK 1:1 com `score_history`) persiste prompt exato, resposta bruta do LLM, o campo `"analise"` (raciocínio pedido no prompt mas descartado no parsing até então) e a `explicacao` de cada uma das 6 dimensões. Ver `decisions.md`.
 - **Sem tool-calling real** — o LLM não pode pedir mais dados; se o contexto fornecido for insuficiente, ele tem que assumir (mitigado pela instrução "não invente sinal" no prompt).
 - **Modelos hospedados por nome, não por hash de versão** — "gemini-2.5-flash" e "qwen/qwen3-32b" podem ser atualizados pelos provedores sem aviso, quebrando a comparabilidade de scores entre datas mesmo com `PROMPT_VERSION` fixo.
 - **EV/EBITDA, payout ratio e margem EBITDA não são coletados** — o prompt setorial de LOGISTICA pede EBITDA mas o dado nunca é fornecido (roadmap P1-7, bug conhecido).
@@ -611,7 +625,7 @@ Fonte: `docs/ROADMAP.md` (estado em 2026-06-12) + lacunas adicionais identificad
 - Melhorar notícias (corpo completo, dedup, filtro de data) e avaliar FinBERT-PT-BR real via HF Inference API (token já configurado, não usado).
 
 ### Médio prazo
-- Tabela de auditoria completa (snapshot de input + prompt + output bruto por análise).
+- ~~Tabela de auditoria completa (snapshot de input + prompt + output bruto por análise).~~ Concluído em 2026-08-07.
 - `@ControllerAdvice` para não engolir exceções como 500 sem corpo.
 - Rate limiting nos endpoints públicos de análise.
 - ~~Flyway em vez de `ddl-auto: update` (schema versionado).~~ Concluído em 2026-08-06.
@@ -633,7 +647,7 @@ Fonte: `docs/ROADMAP.md` (estado em 2026-06-12) + lacunas adicionais identificad
 - **Determinismo aparente, mas não garantido** — temperature 0 não impede que os provedores (Google/Groq) atualizem o modelo por trás do mesmo nome (`gemini-2.5-flash`, `qwen/qwen3-32b`), quebrando comparabilidade histórica de score mesmo com `PROMPT_VERSION` estável.
 - **Ausência de rate limiting expõe custo direto** — cada miss de cache em endpoint público dispara uma chamada de LLM paga, sem limite algum de requisições por IP/usuário.
 - **Cobertura de testes muito baixa**, principalmente no frontend (efetivamente zero) e em serviços críticos do backend (`ComparisonService`, `BacktestService`, `SectorClassifier` sem nenhum teste).
-- **Ausência de tabela de auditoria completa** dificulta investigar por que um score específico saiu de um jeito (só se sabe `modelUsed`/`promptVersion`, não o prompt/resposta exatos).
+- ~~**Ausência de tabela de auditoria completa**~~ Resolvido em 2026-08-07 — `analysis_audit` guarda prompt/resposta exatos, ver `decisions.md`.
 - **JWT sem revogação nem refresh** — modelo de sessão de 24h fixas (reduzido de 7 dias em 2026-08-07) é mais simples que rotação, mas não escala para um requisito de segurança mais rígido (ex.: banir usuário imediatamente).
 - **`SectorClassifier` com mapeamentos incorretos conhecidos** já afeta a qualidade das instruções de prompt e dos benchmarks para setores mal classificados.
 

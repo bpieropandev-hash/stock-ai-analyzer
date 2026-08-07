@@ -32,7 +32,7 @@ Coisas encontradas no código que **não devem ser copiadas como padrão** para 
 ## IA
 
 - **`SectorClassifier` com mapeamentos yfinance→setor conhecidamente incorretos** (Utilities/Technology/Consumer Defensive mal mapeados) — afeta a qualidade das instruções de prompt e dos benchmarks para os setores errados. Corrigir é item de roadmap (P1), não fazer half-fix local sem also revisar `SectorPromptConfig`/`SectorBenchmarks`.
-- **Sem tabela de auditoria** — impossível reconstruir o prompt/resposta exatos de uma análise passada, só se sabe `modelUsed`/`promptVersion`.
+- ~~**Sem tabela de auditoria**~~ Resolvido em 2026-08-07 — `analysis_audit`, ver `decisions.md`.
 - **`huggingface.token` configurado sem consumidor** — não assumir que há integração FinBERT ativa.
 
 ## Regra geral

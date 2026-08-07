@@ -13,7 +13,19 @@
 **JWT TTL**: 7 dias → 24h (`JwtService.TTL_MS`) — mitigação parcial enquanto refresh token não existe, reduz a janela de exposição de um token vazado em 7x. `authInterceptor` (frontend) ganhou tratamento de 401 (limpa token + redireciona pra `/login`) — sem isso, expiração mais curta quebraria a tela silenciosamente com mais frequência.
 - Trade-off aceito: sem refresh, usuário reloga a cada 24h em vez de 7 dias. Refresh token de verdade continua fora do roadmap deste item.
 
-Sprint 1 completo (Flyway → URLs configuráveis → Stock → JWT). Próximo: Sprint 2 (FinBERT real, tabela de auditoria — reranker de RAG segue adiado por acordo mútuo com o GPT).
+Sprint 1 completo (Flyway → URLs configuráveis → Stock → JWT).
+
+## ✅ Concluído (2026-08-07) — Tabela de auditoria completa (P2-10, Sprint 2 item 1)
+
+`analysis_audit` (`com.stockai.analysis.AnalysisAudit`) — FK simples 1:1 pra `score_history.id`, persiste `promptFull` (string exata enviada ao LLM), `rawResponse` (resposta exata antes de sanitizar/parsear), `reasoning` e `explicacao` de cada uma das 6 dimensões. Migration `V3__create_analysis_audit.sql` (aditiva, só tabela nova).
+
+- **Achado incidental no levantamento**: o prompt já pede um campo `"analise"` (raciocínio antes de pontuar) desde a v2, mas `AnalysisParser.parse` nunca extraía esse campo — só `resumo`/`simpleSummary`. Corrigido junto: `ParsedAnalysis` ganhou 3º campo `reasoning`, exposto só pra auditoria (não pra API/frontend).
+- Design: FK simples (`Long scoreHistoryId`), não `@ManyToOne` mapeado — tabela write-heavy/read-rare, ao contrário do padrão EAGER usado pra `Stock`. Escrita best-effort (`AnalysisAuditService`, try/catch sem propagar), mesmo padrão de `ScoreHistoryService`/`ScoreAlertService`.
+- Fora do escopo por decisão: sem endpoint de leitura/API — consulta é via SQL direto por enquanto.
+- Verificado: migration aplicada contra Postgres real, `ddl-auto: validate` passou, suíte 14/14 verde. **Limitação**: sem credenciais de LLM válidas nesta sessão, não foi possível exercitar uma análise real ponta a ponta — gravação verificada por leitura de código e schema, não por `POST /analysis` real.
+- Ver `decisions.md` para o desenho completo.
+
+Próximo: **FinBERT real** (Sprint 2, item 2) — precisa de pesquisa de modelo antes de implementar (não inventar nome de modelo no Hugging Face Hub).
 
 ## ✅ Concluído (2026-08-07) — URLs configuráveis (Sprint 1, item 2)
 
@@ -115,7 +127,7 @@ Sprint 1 completo (Flyway → URLs configuráveis → Stock → JWT). Próximo: 
 9. **Notícias melhores** — buscar corpo (não só título), dedup, filtro de data, remover sufixo do veículo ("... - InfoMoney") que polui o léxico. Avaliar FinBERT-PT-BR real via HF Inference API.
 
 ### P2 — robustez e operação
-10. **Tabela de auditoria completa** — persistir snapshot de input + prompt + output bruto por análise (hoje só modelUsed/promptVersion).
+10. ~~**Tabela de auditoria completa** — persistir snapshot de input + prompt + output bruto por análise.~~ ✅ concluído em 2026-08-07 (ver seção acima).
 11. **`@ControllerAdvice`** — controllers engolem exceções e retornam 500 sem corpo.
 12. **Rate limiting** nos endpoints públicos de análise (cada miss de cache custa chamada de LLM).
 13. ~~**Flyway** em vez de `ddl-auto: update` — schema versionado.~~ ✅ concluído em 2026-08-06 (ver seção acima)

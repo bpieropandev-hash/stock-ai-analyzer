@@ -23,7 +23,7 @@ Sequência de execução para qualquer mudança que toque o pipeline de IA (novo
 - Acionar `performance-reviewer` se a resposta for sim a qualquer uma das duas.
 
 ## 6. Definir auditoria
-- O dado novo entra em algum registro persistido, ou só passa pelo prompt e se perde? Hoje não há tabela de auditoria completa (roadmap P2-10, `anti-patterns.md`) — não é bloqueante, mas sinalizar se a mudança tornaria a ausência de auditoria mais dolorosa (ex.: decisão de score que passa a depender de um dado que não fica registrado em lugar nenhum).
+- O dado novo entra em algum registro persistido, ou só passa pelo prompt e se perde? Desde 2026-08-07, `analysis_audit` persiste o prompt completo e a resposta bruta por análise (ver `decisions.md`) — mas campos individuais novos (ex.: um dado de fundamentals novo) só ficam registrados ali dentro do texto do prompt, não em coluna própria. Se o dado novo merece consulta estruturada própria (não só grep no prompt salvo), avaliar coluna dedicada.
 
 ## 7. Checar domínio financeiro
 - O indicador/dado novo já tem seção em `domain-knowledge.md`? Se não, escrever antes de jogar o número cru no prompt — número sem contexto de interpretação é o motivo documentado de o LLM "inventar" comparação (ver `decisions.md`, motivação de `SectorBenchmarks`).

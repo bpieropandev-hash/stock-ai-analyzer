@@ -54,6 +54,7 @@ public class StockAnalysisService {
     private final StockEmbeddingService embeddingService;
     private final ScoreHistoryService scoreHistoryService;
     private final ScoreAlertService scoreAlertService;
+    private final AnalysisAuditService analysisAuditService;
     private final RedisTemplate<String, String> redisTemplate;
     private final SectorClassifier sectorClassifier;
     private final SectorPromptConfig sectorPromptConfig;
@@ -73,6 +74,7 @@ public class StockAnalysisService {
             StockEmbeddingService embeddingService,
             ScoreHistoryService scoreHistoryService,
             ScoreAlertService scoreAlertService,
+            AnalysisAuditService analysisAuditService,
             RedisTemplate<String, String> redisTemplate,
             SectorClassifier sectorClassifier,
             SectorPromptConfig sectorPromptConfig,
@@ -87,6 +89,7 @@ public class StockAnalysisService {
         this.embeddingService = embeddingService;
         this.scoreHistoryService = scoreHistoryService;
         this.scoreAlertService = scoreAlertService;
+        this.analysisAuditService = analysisAuditService;
         this.redisTemplate = redisTemplate;
         this.sectorClassifier = sectorClassifier;
         this.sectorPromptConfig = sectorPromptConfig;
@@ -166,14 +169,17 @@ public class StockAnalysisService {
 
         AnalysisParser.ParsedAnalysis parsed;
         String modelUsed;
+        String rawResponse;
         try {
-            parsed = parser.parse(ticker, geminiModel.chat(prompt));
+            rawResponse = geminiModel.chat(prompt);
+            parsed = parser.parse(ticker, rawResponse);
             modelUsed = "gemini-2.5-flash";
             log.info("Análise gerada via Gemini para {}", ticker);
         } catch (Exception geminiEx) {
             log.warn("Gemini falhou para {} ({}), tentando Groq...", ticker, geminiEx.getMessage());
             try {
-                parsed = parser.parse(ticker, groqModel.chat(prompt));
+                rawResponse = groqModel.chat(prompt);
+                parsed = parser.parse(ticker, rawResponse);
                 modelUsed = "groq-qwen3-32b";
                 log.info("Análise gerada via Groq (fallback) para {}", ticker);
             } catch (Exception groqEx) {
@@ -184,7 +190,10 @@ public class StockAnalysisService {
 
         StockAnalysis analysis = parsed.analysis();
         indexAnalysis(analysis, fundamentals);
-        scoreHistoryService.saveScore(analysis, modelUsed, PROMPT_VERSION);
+        ScoreHistoryEntity savedScore = scoreHistoryService.saveScore(analysis, modelUsed, PROMPT_VERSION);
+        if (savedScore != null) {
+            analysisAuditService.save(savedScore, prompt, rawResponse, analysis, parsed.reasoning());
+        }
         scoreAlertService.checkAndAlert(analysis);
 
         AnalysisResponse response = new AnalysisResponse(

@@ -14,16 +14,21 @@ Fonte canônica: [`docs/ROADMAP.md`](../ROADMAP.md) — mantido separado por já
 
 - P2-13: Flyway substituindo `ddl-auto: update`. Ver `decisions.md` e `backend.md` para detalhe técnico completo.
 
+## Concluído (2026-08-07)
+
+- Sprint 1 (fora da numeração P0-P3 original, priorização acordada com GPT): URLs configuráveis (CORS/OAuth2 redirect/API base do frontend), entidade `Stock` canônica substituindo ticker solto, JWT TTL 7 dias→24h + tratamento de 401 no frontend.
+- P2-10: tabela de auditoria completa (`analysis_audit`, prompt + raw response + raciocínio + explicação por dimensão). Ver `decisions.md`.
+
 ## Backlog aberto (ver `docs/ROADMAP.md` para detalhe técnico de cada item)
 
 **P1 — precisão por dimensão**
 - P1-6: corrigir `SectorClassifier` (mapeamentos yfinance errados).
 - P1-7: coletar EV/EBITDA, payout ratio, margem EBITDA.
 - P1-8: benchmark relativo IBOV/CDI no momentum.
-- P1-9: notícias melhores + avaliar FinBERT-PT-BR real.
+- P1-9: notícias melhores + avaliar FinBERT-PT-BR real (em andamento — Sprint 2, ver `docs/ROADMAP.md`).
 
 **P2 — robustez e operação**
-- P2-10: tabela de auditoria completa (prompt + output bruto).
+- ~~P2-10: tabela de auditoria completa~~ — concluído 2026-08-07.
 - P2-11: `@ControllerAdvice`.
 - P2-12: rate limiting.
 - ~~P2-13: Flyway em vez de `ddl-auto: update`~~ — concluído 2026-08-06.
@@ -39,11 +44,11 @@ Fonte canônica: [`docs/ROADMAP.md`](../ROADMAP.md) — mantido separado por já
 
 Não têm número de prioridade formal ainda — levantados durante a geração de `docs/PROJECT_DOCUMENTATION.md`:
 - Dockerfiles + pipeline de CI/CD.
-- Externalizar URLs de frontend/backend/CORS via config de ambiente.
+- ~~Externalizar URLs de frontend/backend/CORS via config de ambiente.~~ Concluído 2026-08-07.
 - Remover dependências mortas de WebSocket (`@stomp/stompjs`, `sockjs-client`).
 - Aumentar cobertura de testes de frontend (hoje ~zero).
 - Unificar `SimulatorPage` com `PortfolioService`.
-- Avaliar refresh token / revogação de JWT.
+- Avaliar refresh token / revogação de JWT — TTL reduzido 7 dias→24h em 2026-08-07 (mitigação parcial), refresh/revogação de verdade continua em aberto.
 
 ## Fluxo de trabalho do roadmap
 
