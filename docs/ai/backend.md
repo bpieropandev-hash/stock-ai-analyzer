@@ -63,6 +63,10 @@ Entidades JPA (detalhe completo em `docs/PROJECT_DOCUMENTATION.md` seção 5):
 
 Repositórios: só derived queries (nenhum `@Query` customizado no projeto todo). Antes de adicionar um método novo, checar se um derived-query name já resolve.
 
+## Score Confidence (desde 2026-08-07)
+
+`ScoreConfidence`/`ScoreConfidenceCalculator` (função pura, `com.stockai.analysis`) — meta-score 0-10 de qualidade do dado (não confundir com `scoreGeral`, que mede qualidade da empresa). Agrega `fundamentalsSource`, `SentimentResult.source`/`confidence`, presença de `TechnicalIndicators`, e `SectorBenchmarks.describeWithMeta().dynamic()`. Exposto em `AnalysisResponse.confidence`. Ver `decisions.md` pra fórmula exata.
+
 ## Configuração (`application.yml`)
 
 Arquivo único, sem profiles (`application-dev.yml`/`application-prod.yml` não existem). Blocos: `spring.datasource`, `spring.jpa`, `spring.data.redis`, `spring.task.scheduling.pool.size: 2`, `spring.security.oauth2.client.registration.google`, `pgvector.*`, `python.sidecar.*` + `python.script.*` (paths dos scripts), `ollama.*`, `gemini.api-key`, `groq.api-key`, `embedding.store.table`, `jwt.secret` (sem default — falha no boot se ausente). `huggingface.token` **removido em 2026-08-07** — nunca teve consumidor Java; `HUGGINGFACE_TOKEN` (FinBERT, ver `decisions.md`) é lido direto do `os.environ` pelo sidecar Python, fora do Spring.

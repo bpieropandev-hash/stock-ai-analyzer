@@ -91,15 +91,24 @@ public class SectorBenchmarks {
         this.objectMapper = objectMapper;
     }
 
+    /** dynamic=true quando veio de medianas reais de pares (cache ou cálculo fresco); false = faixa estática. */
+    public record BenchmarkInfo(String text, boolean dynamic) {}
+
     public String describe(SectorType sector) {
+        return describeWithMeta(sector).text();
+    }
+
+    public BenchmarkInfo describeWithMeta(SectorType sector) {
         List<String> peers = PEERS.get(sector);
         if (peers == null) {
-            return staticDescribe(sector);
+            return new BenchmarkInfo(staticDescribe(sector), false);
         }
 
+        // Só se cacheia depois de um cálculo dinâmico bem-sucedido (ver cachePut abaixo) —
+        // cache hit implica que já teve pares suficientes, sem precisar reconferir peerCount aqui.
         String cached = cacheGet(sector);
         if (cached != null) {
-            return cached;
+            return new BenchmarkInfo(cached, true);
         }
 
         try {
@@ -107,13 +116,13 @@ public class SectorBenchmarks {
             String text = formatDynamic(objectMapper.readTree(json));
             if (text != null) {
                 cachePut(sector, text);
-                return text;
+                return new BenchmarkInfo(text, true);
             }
         } catch (Exception e) {
             log.warn("Benchmark dinâmico indisponível para {} — usando faixas estáticas: {}",
                     sector, e.getMessage());
         }
-        return staticDescribe(sector);
+        return new BenchmarkInfo(staticDescribe(sector), false);
     }
 
     /** Retorna null quando há pares de menos para a mediana significar algo. */

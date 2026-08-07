@@ -22,7 +22,8 @@ Investidor pessoa física brasileiro que acompanha ações da B3, sem acesso a t
 - Carteira do usuário (portfolio): CRUD de posições + avaliação da carteira pela IA.
 - Simulador de alocação: sugestão de distribuição de um valor em dinheiro entre ações com base no score.
 - Alertas automáticos de variação relevante de score (Δ > 1.5).
-- Backtesting de correlação entre score e retorno realizado (endpoint existe, **não exposto no frontend** — roadmap P3).
+- Backtesting de correlação entre score e retorno realizado, exposto na tela de análise desde 2026-08-07 (ver `decisions.md`).
+- Score Confidence — meta-score de qualidade do dado (fundamentos/sentimento/técnico/benchmark setorial), desde 2026-08-07 (ver `decisions.md`).
 - Login via Google OAuth2 + JWT próprio.
 
 ### Status atual do projeto
@@ -497,7 +498,7 @@ Google (Gemini), Groq, Ollama local (self-hosted). Ambos LLMs acessados pela mes
 - Carteira: adicionar/atualizar/remover posição, avaliação por IA por posição.
 - Simulador de alocação: sugestão de distribuição percentual de um valor entre tickers, com exclusão de elegíveis abaixo do piso de score.
 - Alertas de variação de score (Δ > 1.5), últimos 7 dias exibidos no dashboard.
-- Backtest de correlação score×retorno (endpoint `GET /api/stocks/{ticker}/backtest` — **existe no backend, não é consumido pelo frontend**).
+- Backtest de correlação score×retorno (`GET /api/stocks/{ticker}/backtest`) — consumido pela tela de análise desde 2026-08-07, seção dedicada com lista de análises passadas × retorno 30d/90d e correlação de Pearson.
 - Login Google OAuth2 + JWT.
 - Rótulos de recomendação CVM-compliant (ATRATIVO/NEUTRO/CAUTELA/DESFAVORÁVEL), com mapeamento de rótulos legados (COMPRAR/VENDER etc.) para compatibilidade com cache antigo.
 - Fundamentos com proveniência exposta (`fundamentalsSource`, `statementDate`).
@@ -515,7 +516,7 @@ Google (Gemini), Groq, Ollama local (self-hosted). Ambos LLMs acessados pela mes
 - ~~Flyway em vez de `ddl-auto: update` — P2-13.~~ Concluído em 2026-08-06.
 - Fluxo estrangeiro real da B3 / short interest / aluguel BTC substituindo o sentimento institucional atual — P2-14.
 - Calendário de resultados/eventos corporativos — P2-15.
-- Exibir `modelUsed`/`promptVersion`/backtest no frontend — P3-16.
+- ~~Exibir `modelUsed`/`promptVersion`/backtest no frontend — P3-16.~~ Concluído em 2026-08-07 (junto com Score Confidence, ver `decisions.md`).
 - Curva DI futuro para custo de capital — P3-17.
 - Mais testes (ComparisonService, BacktestService, SectorClassifier) — P3-18.
 - Infra encontrada mas incompleta: WebSocket abandonado (dependências `@stomp/stompjs`/`sockjs-client` ainda no `package.json`, sem uso — `/ws` retornava 404); componente `ScoreBar` aparentemente órfão (páginas reimplementam a barra inline); `SimulatorPage` usa `HttpClient` direto em vez de `PortfolioService`, endpoint `/api/simulate` inconsistente com `/api/portfolio/suggest-allocation`.
@@ -634,7 +635,7 @@ Fonte: `docs/ROADMAP.md` (estado em 2026-06-12) + lacunas adicionais identificad
 - Calendário de resultados e eventos corporativos.
 
 ### Longo prazo
-- Exibir `modelUsed`, `promptVersion` e resultados de backtest no frontend (transparência ao usuário).
+- ~~Exibir `modelUsed`, `promptVersion` e resultados de backtest no frontend (transparência ao usuário).~~ Concluído em 2026-08-07.
 - Curva DI futuro para custo de capital (hoje só Selic spot + Focus).
 - Mais testes (ComparisonService, BacktestService, SectorClassifier).
 - **Itens adicionais identificados nesta auditoria, não presentes no `ROADMAP.md` original**: criar Dockerfiles + pipeline de CI/CD; remover dependências mortas de WebSocket (`@stomp/stompjs`, `sockjs-client`); aumentar cobertura de testes de frontend (hoje quase zero); unificar `SimulatorPage` com `PortfolioService`; avaliar necessidade de refresh token/revogação de JWT. (Externalizar URLs de frontend/backend/CORS — resolvido em 2026-08-07.)
@@ -662,8 +663,8 @@ Fonte: `docs/ROADMAP.md` (estado em 2026-06-12) + lacunas adicionais identificad
 - Substituir a dimensão "Sentimento Institucional" por dados institucionais de verdade: fluxo estrangeiro diário real da B3, short interest, aluguel de ações (BTC).
 - Calendário de resultados/eventos corporativos para contextualizar a validade temporal de uma análise (véspera de balanço tem peso diferente).
 - Curva DI futuro como proxy de custo de capital, complementando Selic spot + Focus.
-- Expor ao usuário final `modelUsed`, `promptVersion` e resultado do backtest na tela de análise, hoje calculados mas não exibidos.
-- Tabela de auditoria completa por análise (prompt + resposta bruta), permitindo reconstrução exata de qualquer score histórico.
+- ~~Expor ao usuário final `modelUsed`, `promptVersion` e resultado do backtest na tela de análise.~~ Concluído em 2026-08-07, junto com Score Confidence (meta-score de qualidade do dado).
+- ~~Tabela de auditoria completa por análise (prompt + resposta bruta), permitindo reconstrução exata de qualquer score histórico.~~ Concluído em 2026-08-07.
 - Rate limiting e `@ControllerAdvice` para tornar a API pública apta a exposição real.
 - ~~Migração para Flyway/schema versionado.~~ Concluído em 2026-08-06.
 

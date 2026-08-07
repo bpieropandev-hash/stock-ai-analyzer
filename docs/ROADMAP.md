@@ -2,6 +2,22 @@
 
 > Estado em 2026-08-07.
 
+## ✅ Concluído (2026-08-07) — Score Confidence + backtest visual (P3-16, Sprint 3)
+
+**Score Confidence** (`ScoreConfidence`/`ScoreConfidenceCalculator`, novo) — meta-score 0-10 de qualidade do dado, não de qualidade da empresa. Agrega 4 sinais já existentes no sistema (nenhum dado novo coletado):
+- `fundamentalsSource` (`"cvm+yfinance"` = nota alta, `"yfinance"` = nota média — múltiplos yfinance pra B3 já documentados como "frequentemente errados ou defasados").
+- `SentimentResult.source` × `confidence` (FinBERT com alta confiança pesa mais que léxico; sem notícias pesa zero).
+- `TechnicalIndicators` presente ou `null` (binário).
+- Benchmark setorial dinâmico (medianas reais de pares) vs. estático (faixa histórica de fallback) — `SectorBenchmarks` ganhou `describeWithMeta()`/`BenchmarkInfo` pra expor essa informação sem duplicar a chamada ao sidecar/cache.
+- Exposto em `AnalysisResponse.confidence`, mostrado como badge colorido (verde/amarelo/vermelho) na tela de análise, com breakdown no `title` (tooltip nativo).
+
+**Backtest visual** (P3-16) — `modelUsed`, `promptVersion` e o resultado do endpoint `GET /api/stocks/{ticker}/backtest` (já existia no backend, nunca consumido) agora aparecem na tela de análise: nova seção com lista de análises passadas (score histórico × retorno 30d/90d realizado) e correlação de Pearson, carregada de forma assíncrona e não-bloqueante após o resultado principal (falha aí não afeta a análise em si — estado de erro próprio, dedicado).
+
+- Sem lib de gráfico nova — reusa o padrão já estabelecido de SVG/CSS hand-rolled (gauge, barras de dimensão) em vez de adicionar dependência npm pra isso.
+- Ajuste incidental: budget de `anyComponentStyle` do Angular subiu de 8kB→10kB — o componente de análise já estava perto do limite antes, cresceu com feature real (não é bloat).
+- Verificado: `mvn clean compile`/testes 14/14, `ng build --configuration production` limpo (zero warnings). **Não verificado visualmente no navegador** — sem credenciais de LLM válidas nesta sessão (Gemini/Groq), não foi possível rodar uma análise real ponta a ponta pra ver os elementos novos renderizados; só o build/compilação foram confirmados.
+- Ver `decisions.md` para o desenho completo.
+
 ## ✅ Concluído (2026-08-07) — Entidade `Stock` canônica + JWT TTL reduzido (Sprint 1, itens 3 e 4)
 
 **Entidade `Stock`** (`com.stockai.stock`) — `id`, `ticker` (unique, canônico via `TickerNormalizer`), `createdAt`. `portfolio_items`, `score_history`, `stock_alerts` trocaram a coluna `ticker` por FK `stock_id` (migration `V2__introduce_stock_entity.sql`). Criada sob demanda (`StockRepository.findOrCreate`).
@@ -146,7 +162,7 @@ Sprint 2 completo (auditoria + FinBERT). Reranker de RAG segue adiado por acordo
 15. **Calendário de resultados e eventos corporativos** — análise na véspera de balanço tem validade diferente.
 
 ### P3 — produto
-16. **Frontend**: exibir `modelUsed`, `promptVersion` e resultados do backtest na tela de análise (transparência para o usuário).
+16. ~~**Frontend**: exibir `modelUsed`, `promptVersion` e resultados do backtest na tela de análise.~~ ✅ concluído em 2026-08-07 (ver seção acima) — Score Confidence incluído junto.
 17. **Curva DI futuro** para custo de capital (hoje só Selic spot + Focus).
 18. **Mais testes**: ComparisonService, BacktestService (correlação), SectorClassifier.
 

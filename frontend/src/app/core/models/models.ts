@@ -22,6 +22,14 @@ export interface ScoreDetails {
   gestaoRisco: ScoreDimension;
 }
 
+export interface ScoreConfidence {
+  overall: number;
+  fundamentalsQuality: number;
+  sentimentQuality: number;
+  technicalDataAvailable: boolean;
+  sectorBenchmarkDynamic: boolean;
+}
+
 export interface AnalysisResponse {
   ticker: string;
   analysis: ScoreDetails;
@@ -29,7 +37,28 @@ export interface AnalysisResponse {
   simpleSummary: string;
   sector: string;
   modelUsed?: string;
+  promptVersion?: string;
+  confidence?: ScoreConfidence;
   disclaimer?: string;
+}
+
+export interface BacktestEntry {
+  analysisDate: string;
+  scoreGeral: number;
+  modelUsed: string;
+  promptVersion: string;
+  priceAtAnalysis: number | null;
+  return30dPct: number | null;
+  return90dPct: number | null;
+}
+
+export interface BacktestResult {
+  ticker: string;
+  totalAnalyses: number;
+  analysesWithForwardData: number;
+  correlationScore30d: number | null;
+  correlationScore90d: number | null;
+  entries: BacktestEntry[];
 }
 
 export interface PortfolioItemResponse {

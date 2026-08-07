@@ -5,7 +5,7 @@ import { Nav } from '../../shared/components/nav/nav';
 import { RecommendationBadge } from '../../shared/components/recommendation-badge/recommendation-badge';
 import { TickerSelect } from '../../shared/components/ticker-select/ticker-select';
 import { StockService } from '../../core/services/stock.service';
-import { AnalysisResponse, StockQuote } from '../../core/models/models';
+import { AnalysisResponse, BacktestResult, StockQuote } from '../../core/models/models';
 
 const R    = 90;
 const CIRC = 2 * Math.PI * R;
@@ -112,10 +112,22 @@ const CIRC = 2 * Math.PI * R;
                 <div class="card-meta">
                   <div>
                     <div class="ticker-label">{{ (r.ticker || '').replace('.SA','') }}</div>
-                    @if (r.modelUsed) {
-                      <div class="model-tag">{{ r.modelUsed }}</div>
-                    }
+                    <div class="meta-tags">
+                      @if (r.modelUsed) {
+                        <div class="model-tag">{{ r.modelUsed }}</div>
+                      }
+                      @if (r.promptVersion) {
+                        <div class="model-tag">prompt {{ r.promptVersion }}</div>
+                      }
+                    </div>
                   </div>
+                  @if (r.confidence) {
+                    <div class="confidence-badge" [style.color]="confidenceColor(r.confidence.overall)"
+                         [title]="confidenceBreakdown(r.confidence)">
+                      <span class="conf-dot" [style.background]="confidenceColor(r.confidence.overall)"></span>
+                      CONFIANÇA {{ r.confidence.overall | number:'1.1-1' }}
+                    </div>
+                  }
                 </div>
 
                 <div class="gauge-wrap">
@@ -195,6 +207,54 @@ const CIRC = 2 * Math.PI * R;
             </div>
 
           </div>
+
+          <!-- ── Backtest: score histórico × retorno futuro ── -->
+          @if (backtestLoading()) {
+            <div class="backtest-card fade-in" style="flex-direction:row;align-items:center">
+              <span class="spinner" style="width:16px;height:16px;border-width:2px"></span>
+              <span class="bt-loading-text">Calculando backtest…</span>
+            </div>
+          } @else if (backtestError()) {
+            <div class="backtest-card fade-in">
+              <p class="bt-empty">{{ backtestError() }}</p>
+            </div>
+          } @else if (backtest(); as bt) {
+            <div class="backtest-card fade-in">
+              <div class="dims-hd">
+                <span class="dims-title">BACKTEST — SCORE × RETORNO</span>
+                @if (bt.correlationScore30d !== null || bt.correlationScore90d !== null) {
+                  <span class="dims-scale">
+                    correl. 30d {{ fmtCorr(bt.correlationScore30d) }}
+                    &nbsp;|&nbsp;
+                    90d {{ fmtCorr(bt.correlationScore90d) }}
+                  </span>
+                }
+              </div>
+
+              @if (bt.analysesWithForwardData < 3) {
+                <p class="bt-empty">
+                  Histórico insuficiente ainda ({{ bt.totalAnalyses }} análise(s) registrada(s)) — correlação
+                  precisa de pelo menos 3 análises com retorno futuro já observado.
+                </p>
+              } @else {
+                @for (e of bt.entries; track e.analysisDate) {
+                  <div class="bt-row">
+                    <span class="bt-date">{{ e.analysisDate }}</span>
+                    <div class="bt-score-track">
+                      <div class="bt-score-fill" [style.width.%]="e.scoreGeral * 10" [style.background]="barColor(e.scoreGeral)"></div>
+                    </div>
+                    <span class="bt-score-num" [style.color]="barColor(e.scoreGeral)">{{ e.scoreGeral | number:'1.1-1' }}</span>
+                    <span class="bt-ret" [class.ret-pos]="(e.return30dPct ?? 0) >= 0" [class.ret-neg]="(e.return30dPct ?? 0) < 0">
+                      {{ fmtPct(e.return30dPct) }}
+                    </span>
+                    <span class="bt-ret" [class.ret-pos]="(e.return90dPct ?? 0) >= 0" [class.ret-neg]="(e.return90dPct ?? 0) < 0">
+                      {{ fmtPct(e.return90dPct) }}
+                    </span>
+                  </div>
+                }
+              }
+            </div>
+          }
 
           @if (r.disclaimer) {
             <div class="disclaimer">
@@ -385,9 +445,17 @@ const CIRC = 2 * Math.PI * R;
       text-align: center;
     }
 
-    .card-meta { display: flex; justify-content: flex-start; align-items: flex-start; text-align: left; margin-bottom: 8px; }
+    .card-meta { display: flex; justify-content: space-between; align-items: flex-start; text-align: left; margin-bottom: 8px; gap: 8px; }
     .ticker-label { font-family: var(--font-mono); font-size: 26px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.08em; line-height: 1; }
-    .model-tag { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); background: rgba(255,255,255,0.04); border: 1px solid var(--brd); border-radius: 4px; padding: 2px 7px; display: inline-block; margin-top: 6px; }
+    .meta-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .model-tag { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); background: rgba(255,255,255,0.04); border: 1px solid var(--brd); border-radius: 4px; padding: 2px 7px; display: inline-block; }
+
+    .confidence-badge {
+      display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+      font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--brd); border-radius: 20px; padding: 4px 10px;
+    }
+    .conf-dot { width: 6px; height: 6px; border-radius: 50%; }
 
     .gauge-wrap { position: relative; width: 200px; height: 200px; margin: 8px auto 14px; }
     .gauge-svg { width: 200px; height: 200px; transform: rotate(-90deg); }
@@ -438,6 +506,29 @@ const CIRC = 2 * Math.PI * R;
     .dim-score { width: 36px; flex-shrink: 0; text-align: right; font-family: var(--font-mono); font-size: 15px; font-weight: 700; }
     .dim-expl { font-size: 12px; color: var(--text-muted); line-height: 1.65; margin-top: 6px; padding-left: calc(160px + 12px); }
 
+    /* ── Backtest card ── */
+    .backtest-card {
+      background: var(--surf);
+      border: 1px solid var(--brd);
+      border-radius: 8px;
+      padding: 24px;
+      margin-top: 20px;
+      box-shadow: 0 2px 24px rgba(0,0,0,0.5);
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .bt-loading-text { font-size: 12px; color: var(--text-muted); margin-left: 12px; }
+    .bt-empty { font-size: 12px; color: var(--text-muted); line-height: 1.65; padding-top: 14px; }
+
+    .bt-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); &:last-child { border-bottom: none; } }
+    .bt-date { width: 90px; flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+    .bt-score-track { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; min-width: 0; }
+    .bt-score-fill { height: 100%; border-radius: 3px; }
+    .bt-score-num { width: 32px; flex-shrink: 0; text-align: right; font-family: var(--font-mono); font-size: 12px; font-weight: 700; }
+    .bt-ret { width: 64px; flex-shrink: 0; text-align: right; font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--text-muted); }
+    .ret-pos { color: var(--a); } .ret-neg { color: #ef4444; }
+
     /* ── Disclaimer / Empty ── */
     .disclaimer { margin-top: 32px; }
     .disc-divider { height: 1px; background: rgba(255,255,255,0.06); margin-bottom: 14px; }
@@ -470,6 +561,9 @@ export class AnalysisPage implements OnInit {
   ringScore   = signal(0);
   quotes      = signal<StockQuote[]>([]);
   ticks       = Array.from({ length: 10 }, (_, i) => i);
+  backtest        = signal<BacktestResult | null>(null);
+  backtestLoading = signal(false);
+  backtestError   = signal('');
 
   constructor(private stockService: StockService, private route: ActivatedRoute) {}
 
@@ -486,11 +580,13 @@ export class AnalysisPage implements OnInit {
     this.error.set('');
     this.result.set(null);
     this.ringScore.set(0);
+    this.backtest.set(null);
     this.stockService.analyze(t).subscribe({
       next: r => {
         this.result.set(r);
         this.loading.set(false);
         setTimeout(() => this.ringScore.set(r.analysis?.scoreGeral ?? 0), 120);
+        this.loadBacktest(t);
       },
       error: e => {
         this.error.set(e?.error?.message || 'Erro ao analisar. Verifique o ticker e tente novamente.');
@@ -505,13 +601,27 @@ export class AnalysisPage implements OnInit {
     this.loading.set(true);
     this.result.set(null);
     this.ringScore.set(0);
+    this.backtest.set(null);
     this.stockService.refreshAnalysis(t).subscribe({
       next: r => {
         this.result.set(r);
         this.loading.set(false);
         setTimeout(() => this.ringScore.set(r.analysis?.scoreGeral ?? 0), 120);
+        this.loadBacktest(t);
       },
       error: () => this.analyze()
+    });
+  }
+
+  private loadBacktest(ticker: string) {
+    this.backtestLoading.set(true);
+    this.backtestError.set('');
+    this.stockService.getBacktest(ticker).subscribe({
+      next: bt => { this.backtest.set(bt); this.backtestLoading.set(false); },
+      error: () => {
+        this.backtestLoading.set(false);
+        this.backtestError.set('Backtest indisponível no momento.');
+      }
     });
   }
 
@@ -519,6 +629,22 @@ export class AnalysisPage implements OnInit {
   barColor(s: number) { return s >= 6.5 ? '#00d4aa' : s >= 4 ? '#f59e0b' : '#ef4444'; }
   barGlow(s: number)  { return s >= 6.5 ? 'rgba(0,212,170,0.4)' : s >= 4 ? 'rgba(245,158,11,0.4)' : 'rgba(239,68,68,0.4)'; }
   ringColor(s: number){ return s >= 6.5 ? '#00d4aa' : s >= 4 ? '#f59e0b' : '#ef4444'; }
+  confidenceColor(s: number) { return s >= 7 ? '#00d4aa' : s >= 4 ? '#f59e0b' : '#ef4444'; }
+
+  confidenceBreakdown(c: NonNullable<AnalysisResponse['confidence']>): string {
+    return `Fundamentos: ${c.fundamentalsQuality.toFixed(1)} | Sentimento: ${c.sentimentQuality.toFixed(1)} | `
+         + `Técnico: ${c.technicalDataAvailable ? 'disponível' : 'indisponível'} | `
+         + `Benchmark setorial: ${c.sectorBenchmarkDynamic ? 'medianas reais' : 'faixa estática'}`;
+  }
+
+  fmtPct(v: number | null): string {
+    if (v === null) return '—';
+    return (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  }
+
+  fmtCorr(v: number | null): string {
+    return v === null ? '—' : v.toFixed(2);
+  }
 
   buildDims(r: AnalysisResponse) {
     const a = r.analysis;

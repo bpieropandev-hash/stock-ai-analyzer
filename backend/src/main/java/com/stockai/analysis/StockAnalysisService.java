@@ -164,8 +164,9 @@ public class StockAnalysisService {
         SectorType sector = sectorClassifier.classify(ticker, fundamentals.sector());
         SentimentResult sentiment = fetchSentiment(news);
         String context = retrieveContext(fundamentals, sector);
+        SectorBenchmarks.BenchmarkInfo benchmarkInfo = sectorBenchmarks.describeWithMeta(sector);
 
-        String prompt = buildPrompt(fundamentals, macro, context, sentiment, technical, sector);
+        String prompt = buildPrompt(fundamentals, macro, context, sentiment, technical, sector, benchmarkInfo.text());
 
         AnalysisParser.ParsedAnalysis parsed;
         String modelUsed;
@@ -196,6 +197,9 @@ public class StockAnalysisService {
         }
         scoreAlertService.checkAndAlert(analysis);
 
+        ScoreConfidence confidence = ScoreConfidenceCalculator.calculate(
+                fundamentals, sentiment, technical, benchmarkInfo.dynamic());
+
         AnalysisResponse response = new AnalysisResponse(
                 analysis,
                 sector.name(),
@@ -203,7 +207,8 @@ public class StockAnalysisService {
                 parser.deriveRecommendation(analysis.scoreGeral()),
                 DISCLAIMER,
                 modelUsed,
-                PROMPT_VERSION
+                PROMPT_VERSION,
+                confidence
         );
 
         try {
@@ -352,12 +357,12 @@ public class StockAnalysisService {
     // -------------------------------------------------------------------------
 
     private String buildPrompt(StockFundamentals f, MacroData macro, String context,
-                               SentimentResult sentiment, TechnicalIndicators technical, SectorType sector) {
+                               SentimentResult sentiment, TechnicalIndicators technical, SectorType sector,
+                               String benchmarkSection) {
         String macroSection = macro != null ? buildMacroText(macro) : "Dados macroeconômicos indisponíveis.";
         String technicalSection = buildTechnicalText(technical);
         String sentimentSection = buildSentimentText(sentiment);
         String sectorSection = sectorPromptConfig.getInstructions(sector);
-        String benchmarkSection = sectorBenchmarks.describe(sector);
 
         LocalDate today = LocalDate.now();
         // Eleições gerais brasileiras a cada 4 anos a partir de 2026

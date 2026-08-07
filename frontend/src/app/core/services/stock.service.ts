@@ -1,7 +1,7 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { AnalysisResponse, ComparisonResult, StockAlert, StockQuote } from '../models/models';
+import { AnalysisResponse, BacktestResult, ComparisonResult, StockAlert, StockQuote } from '../models/models';
 import { environment } from '../../../environments/environment';
 
 const API = `${environment.apiUrl}`;
@@ -37,6 +37,10 @@ export class StockService implements OnDestroy {
 
   getAlerts(days = 7): Observable<StockAlert[]> {
     return this.http.get<StockAlert[]>(`${API}/alerts?days=${days}`);
+  }
+
+  getBacktest(ticker: string): Observable<BacktestResult> {
+    return this.http.get<BacktestResult>(`${API}/stocks/${this.normalizeTicker(ticker)}/backtest`);
   }
 
   /* WebSocket foi substituído por polling HTTP a cada 30s devido ao endpoint

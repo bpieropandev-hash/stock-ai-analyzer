@@ -18,6 +18,7 @@ Fonte canônica: [`docs/ROADMAP.md`](../ROADMAP.md) — mantido separado por já
 
 - Sprint 1 (fora da numeração P0-P3 original, priorização acordada com GPT): URLs configuráveis (CORS/OAuth2 redirect/API base do frontend), entidade `Stock` canônica substituindo ticker solto, JWT TTL 7 dias→24h + tratamento de 401 no frontend.
 - Sprint 2: P2-10 tabela de auditoria completa (`analysis_audit`, prompt + raw response + raciocínio + explicação por dimensão); P1-9 parcial — FinBERT-PT-BR real com fallback léxico automático (`PROMPT_VERSION` v2.3→v2.4). Ver `decisions.md`.
+- Sprint 3: Score Confidence (meta-score de qualidade do dado — `ScoreConfidenceCalculator`, agrega sinais já existentes: fonte dos fundamentos, sentimento, indicadores técnicos, benchmark setorial); P3-16 — `modelUsed`/`promptVersion`/backtest expostos na tela de análise. Ver `decisions.md`.
 
 ## Backlog aberto (ver `docs/ROADMAP.md` para detalhe técnico de cada item)
 
@@ -36,7 +37,7 @@ Fonte canônica: [`docs/ROADMAP.md`](../ROADMAP.md) — mantido separado por já
 - P2-15: calendário de resultados e eventos corporativos.
 
 **P3 — produto**
-- P3-16: expor `modelUsed`/`promptVersion`/backtest no frontend.
+- ~~P3-16: expor `modelUsed`/`promptVersion`/backtest no frontend.~~ — concluído 2026-08-07, junto com Score Confidence.
 - P3-17: curva DI futuro.
 - P3-18: mais testes (ComparisonService, BacktestService, SectorClassifier).
 

@@ -31,7 +31,7 @@ Todas via `loadComponent` (lazy). Guard: `authGuard` (checa só presença de tok
 
 Desde 2026-08-07, `src/environments/environment.ts` (dev, absoluto `http://localhost:8080`) e `environment.prod.ts` (prod, relativo `/api` — assume backend na mesma origem via reverse proxy) trocados via `fileReplacements` no `angular.json` (`ng build --configuration production`). Nenhum service ou componente deve voltar a hardcodar `http://localhost:8080` — sempre importar `environment` de `../../../environments/environment` (ajustar profundidade conforme a pasta). Ver `decisions.md`.
 
-- `stock.service.ts`: `getQuotes`, `analyze(ticker)`, `refreshAnalysis(ticker)`, `compare(tickers)`, `getAlerts(days)`. `connectWebSocket`/`disconnectWebSocket` na verdade fazem polling HTTP a cada 30s (`setInterval`) — não é WebSocket real.
+- `stock.service.ts`: `getQuotes`, `analyze(ticker)`, `refreshAnalysis(ticker)`, `compare(tickers)`, `getAlerts(days)`, `getBacktest(ticker)` (desde 2026-08-07). `connectWebSocket`/`disconnectWebSocket` na verdade fazem polling HTTP a cada 30s (`setInterval`) — não é WebSocket real.
 - `portfolio.service.ts`: `getPortfolio`, `addOrUpdate`, `remove(ticker)`, `evaluate`, `suggestAllocation(amount)`.
 - `auth.service.ts`: `loginWithGoogle()` usa `environment.authUrl` (`''` em prod, relativo).
 - `SimulatorPage` injeta `HttpClient` direto e chama `${environment.apiUrl}/simulate` — **não usa `PortfolioService`**, endpoint diferente de `suggestAllocation` (`/api/portfolio/suggest-allocation`). Inconsistência conhecida, não corrigir sem entender se são fluxos propositalmente distintos.
@@ -77,6 +77,8 @@ Framework: SCSS puro com variáveis CSS. **Sem Tailwind, sem Bootstrap.**
 - Score bar: cor por valor (vermelho `<4`, amarelo `4–6.5`, verde `>6.5`).
 - Stock card dashboard: `height 120px` — ticker + preço + variação + setor.
 - Recommendation badge: linguagem descritiva (Res. CVM 20/2021 — nunca COMPRAR/VENDER); cores fixas `ATRATIVO=#00d4aa`, `NEUTRO=#3b82f6`, `CAUTELA=#f59e0b`, `DESFAVORÁVEL=#ef4444`.
+- Confidence badge (desde 2026-08-07, `analysis.ts`): mesmo esquema de cor de `barColor`/`ringColor` (`≥7` verde, `≥4` amarelo, resto vermelho), breakdown no `title` nativo (sem tooltip customizado).
+- Backtest section (desde 2026-08-07, `analysis.ts`): reusa barra de score (mesmo padrão de `dim-track`/`dim-fill`) por linha, sem lib de gráfico — hand-rolled SVG/CSS como o resto da página.
 
 ### Processo obrigatório para mudança visual
 1. Ler este arquivo antes de qualquer CSS.
