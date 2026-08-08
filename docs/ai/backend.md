@@ -75,6 +75,16 @@ Repositórios: só derived queries (nenhum `@Query` customizado no projeto todo)
 
 `ScoreChangeExplanation`/`ScoreChangeCalculator` (função pura) — compara a análise atual com o registro anterior em `score_history` (buscado **antes** de `saveScore`), aponta a dimensão de maior `|delta|` e reusa a `explicacao` que o LLM já dá pra ela. `null` na primeira análise de um ticker. Exposto em `AnalysisResponse.scoreChange`. Diferente de `StockAlert`/`ScoreAlertService` (que só dispara acima de threshold 1.5, sem explicar o porquê) — isso mostra sempre que há histórico. Ver `decisions.md`.
 
+## Padrões transacionais
+
+`@Transactional` hoje só em 3 services: `AnalysisAuditService`, `ScoreHistoryService`, `PortfolioService` — propagação default (`REQUIRED`), sem `@Version`/lock otimista em nenhuma entidade (nenhum conflito concorrente a resolver ainda).
+
+`AnalysisAuditService.save` já é best-effort (try/catch interno, log + segue, nunca propaga) — mesmo efeito prático de rodar a escrita fora da transação principal, só que sem usar `REQUIRES_NEW` explícito. Vale considerar `@Transactional(propagation = REQUIRES_NEW)` + `@TransactionalEventListener(phase = AFTER_COMMIT)` se esse padrão "escrita auxiliar que não pode derrubar o fluxo principal" se repetir em outro lugar — hoje só existe esse um caso, então não há necessidade de generalizar ainda.
+
+Efeito colateral externo (email, webhook, publish) dentro de uma `@Transactional` que pode dar rollback: nunca disparar direto — publicar `ApplicationEvent` e escutar em `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)`. Não há caso disso no projeto hoje (sem envio de email/webhook), mas é o padrão a seguir se aparecer.
+
+Spring Framework 7 (Boot 4) move retry pra core (`@Retryable` + `@EnableResilientMethods`, pacote `org.springframework.resilience.annotation`), substituindo Spring Retry. Não usado hoje — não há `@Version`/otimista pra ter conflito pra retentar. Se um `@Version` for adicionado a alguma entidade no futuro (ex.: `PortfolioItem` sob edição concorrente), essa é a ferramenta certa, não `spring-retry` (dependência separada, redundante com o que já vem no framework).
+
 ## Configuração (`application.yml`)
 
 Arquivo único, sem profiles (`application-dev.yml`/`application-prod.yml` não existem). Blocos: `spring.datasource`, `spring.jpa`, `spring.data.redis`, `spring.task.scheduling.pool.size: 2`, `spring.security.oauth2.client.registration.google`, `pgvector.*`, `python.sidecar.*` + `python.script.*` (paths dos scripts), `ollama.*`, `gemini.api-key`, `groq.api-key`, `embedding.store.table`, `jwt.secret` (sem default — falha no boot se ausente). `huggingface.token` **removido em 2026-08-07** — nunca teve consumidor Java; `HUGGINGFACE_TOKEN` (FinBERT, ver `decisions.md`) é lido direto do `os.environ` pelo sidecar Python, fora do Spring.

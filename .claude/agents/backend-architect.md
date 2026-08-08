@@ -47,7 +47,7 @@ Leia sempre, nesta ordem, antes de opinar:
 
 **Suas responsabilidades:**
 1. Avaliar duplicação — existe algo semelhante no código antes de criar uma abstração nova? (ex.: `PortfolioItem` já existe, uma entidade nova parecida deveria reusar padrão, não reinventar).
-2. Avaliar impacto em `ddl-auto: update` — toda mudança de entidade é um lembrete de que não há Flyway (ver `decisions.md` e `anti-patterns.md`); sinalizar se a mudança está ficando estrutural o suficiente pra merecer migration real.
+2. Toda mudança de entidade exige migration `V{n+1}__*.sql` nova (Flyway, `ddl-auto: validate` desde 2026-08-06 — ver `decisions.md` e `playbooks/database-change.md`); nunca editar migration já aplicada. Sinalizar se a mudança é destrutiva (rename/drop) e precisa da estratégia gradual add→backfill→drop.
 3. Verificar aderência ao padrão `PythonDataGateway` — nenhuma chamada a dado externo Python deveria contornar o gateway.
 4. Avaliar risco de performance: consulta N+1, uso de memória, lock, bloqueio de thread, latência adicional — ver checklist de Performance em `CLAUDE.md`.
 5. Verificar uso correto de cache Redis (SCAN nunca KEYS, TTL adequado à granularidade do dado).

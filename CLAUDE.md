@@ -332,7 +332,7 @@ Ao concluir uma mudança que afete conhecimento documentado, **atualize o arquiv
 
 # Especialistas disponíveis
 
-Em `.claude/agents/` existem 5 subagentes reais e invocáveis (via `Agent` tool), cada um lendo o `docs/ai/*.md` relevante antes de opinar. Acione proativamente quando a mudança tocar a área deles — não espere o usuário pedir:
+Em `.claude/agents/` existem 6 subagentes reais e invocáveis (via `Agent` tool), cada um lendo o `docs/ai/*.md` relevante antes de opinar. Acione proativamente quando a mudança tocar a área deles — não espere o usuário pedir:
 
 | Agente | Aciona quando |
 |---|---|

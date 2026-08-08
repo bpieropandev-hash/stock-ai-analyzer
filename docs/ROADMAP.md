@@ -100,9 +100,9 @@ Sprint 2 completo (auditoria + FinBERT). Reranker de RAG segue adiado por acordo
 
 ## ✅ Concluído (2026-06-12) — Linguagem descritiva nos rótulos (P0-3)
 
-- Rótulos da análise: COMPRAR/MANTER/AGUARDAR/EVITAR → **ATRATIVO/NEUTRO/CAUTELA/DESFAVORÁVEL** (mesmas faixas de score em `AnalysisParser.deriveRecommendation`); ações de carteira COMPRAR_MAIS/MANTER/VENDER → ATRATIVO/NEUTRO/DESFAVORÁVEL — Res. CVM 20/2021 restringe recomendações imperativas a analistas credenciados
+- Rótulos da análise: COMPRAR/MANTER/AGUARDAR/EVITAR → **ATRATIVO/NEUTRO/CAUTELA/DESFAVORÁVEL** (mesmas faixas de score em `AnalysisParser.deriveRecommendation`); ações de carteira COMPRAR_MAIS/MANTER/VENDER → ATRATIVO/NEUTRO/DESFAVORÁVEL (nota 2026-08-08: `PortfolioService.evaluate()` tinha um corte próprio de só 3 valores, sem CAUTELA — divergência achada e corrigida, hoje usa o mesmo rótulo oficial de 4 valores via `analysis.recommendation()`, ver `decisions.md`) — Res. CVM 20/2021 restringe recomendações imperativas a analistas credenciados
 - Elegibilidade na alocação (`PortfolioService`/`PortfolioSimulator`) agora compara **score ≥ 6.0** (piso do NEUTRO) em vez de rótulo — imune a análises com grafia antiga no cache Redis
-- Frontend: badge e portfolio mapeiam os rótulos novos com as mesmas cores (`ATRATIVO=#00d4aa`, `NEUTRO=#3b82f6`, `CAUTELA=#f59e0b`, `DESFAVORÁVEL=#ef4444`); rótulos antigos vindos do cache (TTL 30 min) exibem o texto novo — esses mapeamentos legados podem ser removidos depois
+- Frontend: badge e portfolio mapeiam os rótulos novos com cores fixas (nota 2026-08-08: paleta real hoje é `ATRATIVO=#00e5c3`, `NEUTRO=#3b82f6`, `CAUTELA=#f0a020`, `DESFAVORÁVEL=#ff3b5c` — mudou depois desta entrada, ver `frontend.md`); rótulos antigos vindos do cache (TTL 30 min) exibem o texto novo — esses mapeamentos legados podem ser removidos depois
 - `PROMPT_VERSION` inalterado — o rótulo é derivado em Java a partir do score; o prompt não muda
 
 ## ✅ Concluído (2026-06-12) — Dados oficiais CVM como fonte primária de fundamentos (P0-2)

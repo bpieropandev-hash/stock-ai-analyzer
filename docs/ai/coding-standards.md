@@ -8,11 +8,17 @@
 
 ## Backend Java
 
-- Java 26, Spring Boot 4 — `tools.jackson.*`, **não** `com.fasterxml.jackson.*` (erro comum ao reusar exemplos antigos).
+- Java 26, Spring Boot 4 — `tools.jackson.*`, **não** `com.fasterxml.jackson.*` (erro comum ao reusar exemplos antigos). `RedisStockCache` já segue isso certo: `tools.jackson.databind.ObjectMapper` injetado, serialização manual (`writeValueAsString`/`readValue(json, StockQuote.class)`) com tipo explícito no ponto de leitura — não depende de default typing/polymorphism, então o gotcha comum de Jackson3+Redis (`GenericJacksonJsonRedisSerializer` sem `enableDefaultTyping` volta `LinkedHashMap` em vez do tipo certo) não se aplica aqui. Se um cache novo precisar guardar tipo polimórfico (hoje nenhum precisa), aí sim revisitar esse ponto.
 - Records para DTOs imutáveis — é o padrão do projeto (`StockFundamentals`, `MacroData`, `TechnicalIndicators`, `SentimentResult`, `NewsItem`, etc.), não usar classe mutável para dado de passagem.
 - `@Value` para config externalizada.
 - Virtual threads para I/O paralelo (`Executors.newVirtualThreadPerTaskExecutor()`) — não usar `ExecutorService` de pool fixo para chamadas de rede.
 - Nunca hardcodar credencial — tudo via `${VAR}` em `application.yml`, sem fallback fraco quando o segredo é sensível (padrão: `jwt.secret` não tem default).
+
+## Entidades JPA
+
+- Sem Lombok no projeto (confirmado — zero import `lombok.*`) — `@Data`/`@EqualsAndHashCode` não são um risco real hoje, mas se Lombok entrar algum dia: nunca `@Data` em entidade (gera `equals`/`hashCode` com campo mutável/associação, dispara lazy load, muda hash em memória).
+- `equals`/`hashCode`: nenhuma entidade sobrescreve hoje (`Stock` e as demais usam identidade padrão do `Object`) — correto para entidade com ID gerado e sem chave natural estável. Só sobrescrever se a entidade ganhar uma chave natural (ex.: `ticker` em `Stock` já é `unique`, mas não é a PK) — nesse caso, base `equals`/`hashCode` só na chave natural, nunca em coleção/associação/campo mutável, e usar `instanceof` em vez de `getClass()` (proxy do Hibernate quebra `getClass()`).
+- `GenerationType.IDENTITY` (`Stock`, `ScoreHistoryEntity`, `AnalysisAudit`) desabilita batch insert do Hibernate silenciosamente (precisa do ID gerado por linha antes do próximo insert) — `GenerationType.UUID` (`UserEntity`, `PortfolioItem`, `StockAlertEntity`) preserva batching. Não é problema hoje (sem insert em lote em lugar nenhum do código), só relevante se um fluxo de bulk-insert aparecer numa entidade `IDENTITY`.
 
 ## Dependências Maven
 

@@ -5,6 +5,7 @@ Sequência de execução para qualquer alteração de entidade JPA, tabela ou í
 ## 1. Escrever a migration
 - Toda mudança de entidade (coluna, tabela, índice, constraint) precisa de um `V{n+1}__descricao.sql` novo em `db/migration/` — **nunca** editar `V1__baseline_schema.sql` ou qualquer migration já aplicada retroativamente (invariante #18).
 - A mudança é aditiva (coluna nova nullable, tabela nova) ou destrutiva (remover/renomear coluna, mudar tipo, apertar constraint em dado existente)? Destrutiva precisa de mais cuidado nos passos 4-6 abaixo — Flyway aplica o SQL exatamente como escrito, não avisa se ele perde dado.
+- **Renomear coluna nunca é uma migration só** (`ALTER TABLE ... RENAME COLUMN` quebra o código antigo se o deploy não for atômico): 1) migration aditiva cria a coluna nova; 2) migration faz backfill (`UPDATE ... SET novo = antigo`); 3) código Java passa a escrever nos dois até o deploy estabilizar; 4) migration separada, só depois de confirmar que nada mais lê a coluna antiga, faz o `DROP COLUMN`. Mesmo raciocínio já usado na migration de `Stock` (ver `decisions.md`), só que ali foi cutover numa migration só porque era ambiente pessoal sem dependência externa lendo a coluna — não é o padrão default, foi exceção justificada.
 - Testar a migration contra um banco real antes de considerar pronto: schema vazio (ambiente novo) **e** schema já na versão anterior (ambiente de dev existente) — os dois caminhos precisam funcionar.
 
 ## 2. Impacto no cache
@@ -13,6 +14,7 @@ Sequência de execução para qualquer alteração de entidade JPA, tabela ou í
 ## 3. Índices
 - A mudança introduz uma query nova por um campo sem índice? Volume atual é pequeno (uso pessoal/poucos usuários) — mas se o campo for usado em `WHERE`/`ORDER BY` de forma recorrente, decidir o índice agora é mais barato que descobrir depois.
 - Índice composto existente (`score_history`: `(ticker, analysisDate)`) é o padrão de referência — seguir a mesma lógica pra casos análogos.
+- **Índice em tabela já com dado (`score_history`, `stock_embeddings` quando crescerem)**: `CREATE INDEX CONCURRENTLY` evita lock de escrita na tabela, mas **não pode rodar dentro de uma transação** — e o Flyway envolve toda migration numa transação por padrão, então a migration falha se o `CONCURRENTLY` for só mais uma linha de SQL num `V{n}__*.sql` normal. Precisa de um arquivo de config irmão `V{n}__descricao.sql.conf` com `executeInTransaction=false`, e o `CREATE INDEX CONCURRENTLY` sozinho nesse arquivo (nada mais junto). Enquanto o volume for pequeno (caso atual), índice normal dentro da transação já basta — isso só importa quando a tabela crescer o bastante pra um `CREATE INDEX` comum travar escrita por tempo perceptível.
 
 ## 4. Retrocompatibilidade
 - Dado antigo já persistido continua válido com a entidade nova? (ex.: coluna nova sem default quebra `insert` de código antigo se o deploy não for atômico.)

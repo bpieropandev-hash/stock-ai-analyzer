@@ -31,7 +31,7 @@ Angular SPA ──HTTP/REST──▶ Spring Boot backend ──HTTP local──�
 | `analysis` | Orquestração do score de IA, parsing/validação, comparação, backtesting, embeddings, benchmarks setoriais, LangChain4j — módulo mais denso (~35 classes) |
 | `scheduler` | `PythonDataGateway`, `PythonScriptRunner`, jobs agendados (`StockFetchJob`, `HistoricalIndexingJob`) |
 | `cache` | Abstração sobre Redis (`RedisStockCache` — SCAN, nunca KEYS) |
-| `auth` | OAuth2 Google + JWT |
+| `auth` | OAuth2 **Client** Google + JWT próprio (ver nota abaixo — **não** é OAuth2 Resource Server) |
 | `user` | Entidade de usuário |
 | `portfolio` | Carteira: CRUD, avaliação por IA, sugestão de alocação |
 
@@ -55,6 +55,12 @@ Ver `decisions.md` para o porquê de cada uma. Resumo:
 - Sidecar Python em vez de reescrever coleta de dados em Java.
 - Benchmarks setoriais dinâmicos porque o LLM "inventa" médias de memória sem eles.
 - `Stock` como entidade canônica desde 2026-08-07 — `portfolio_items`/`score_history`/`stock_alerts` referenciam por FK.
+
+## Autenticação: OAuth2 Client, não Resource Server
+
+Fluxo real: `Google OAuth2 → spring-boot-starter-oauth2-client (login) → backend emite seu próprio JWT (jjwt/JwtService) → frontend usa esse JWT nas próximas chamadas`. O backend nunca valida token emitido por terceiro (Keycloak/Auth0/Okta/Cognito) — ele é o próprio emissor e validador do token que circula depois do login.
+
+Isso é diferente de um **OAuth2 Resource Server** (`spring-boot-starter-oauth2-resource-server`/`spring-boot-starter-security-oauth2-resource-server`), que valida JWT emitido por um Identity Provider externo via `issuer-uri`/`jwk-set-uri` e não emite token próprio. Confundir os dois papéis leva a tentar configurar `issuer-uri` ou reescrever `JwtAuthenticationConverter` esperando um `Jwt` decodificado de IdP externo — não existe esse componente no fluxo real, e mexer nisso quebraria o login Google. Ver `security-reviewer.md` para os gaps reais desse fluxo (TTL, revogação, token em query string).
 
 ## Entidade `Stock` canônica (desde 2026-08-07)
 

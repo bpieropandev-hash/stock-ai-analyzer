@@ -49,31 +49,31 @@ import { CommonModule } from '@angular/common';
 
     .buy {
       background: rgba(0, 229, 195, 0.12);
-      color: #00e5c3;
+      color: var(--accent);
       border-color: rgba(0, 229, 195, 0.3);
     }
 
     .hold {
       background: rgba(59, 130, 246, 0.12);
-      color: #3b82f6;
+      color: var(--blue);
       border-color: rgba(59, 130, 246, 0.3);
     }
 
     .wait {
       background: rgba(240, 160, 32, 0.12);
-      color: #f0a020;
+      color: var(--amber);
       border-color: rgba(240, 160, 32, 0.3);
     }
 
     .avoid {
       background: rgba(255, 59, 92, 0.12);
-      color: #ff3b5c;
+      color: var(--danger);
       border-color: rgba(255, 59, 92, 0.3);
     }
 
     .neutral {
       background: rgba(98, 122, 143, 0.08);
-      color: #627a8f;
+      color: var(--text-secondary);
       border-color: rgba(98, 122, 143, 0.2);
     }
   `]

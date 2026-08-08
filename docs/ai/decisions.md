@@ -139,6 +139,45 @@ Documentado por completude — decisão já superada acima, mas o raciocínio or
 **Decisão**: suprimir `totalDebt`/`debtToEquity` no prompt quando a CVM não mostra conta de empréstimos/financiamentos no balanço de uma financeira.
 **Motivo**: captação e depósitos bancários não são dívida corporativa; o yfinance trata isso como se fosse, distorcendo `gestaoRisco` para o setor inteiro (ex.: ITUB4 aparecia com "dívida" de R$ 1,15 tri).
 
+## Auditoria de Spring Boot Skills externas: zero instalação (resolvido em 2026-08-08)
+
+**Decisão**: auditadas 5 Skills de `github.com/rrezartprebreza/spring-boot-skills` (MIT, ativo) — `spring-data-jpa`, `flyway-migrations`, `spring-data-redis`, `oauth2-resource-server`, `transactional-patterns`. Nenhuma foi instalada. 4 conhecimentos pontuais extraídos pros docs; o resto foi descartado por já estar coberto, ser inaplicável na escala atual, ou conflitar com decisão já tomada.
+**Motivo de não instalar nenhuma**: Skills genéricas ensinam o padrão médio de mercado, não o contexto específico do projeto — instalar a Skill inteira arrisca um agente aplicar uma regra genérica (ex.: "sempre LAZY") por cima de uma decisão já pesada e documentada (`Stock` EAGER, ver decisão acima), ou resolver o problema errado (Resource Server num projeto que é OAuth2 Client). O conhecimento interno em `docs/ai/*` já é mais específico que a Skill genérica na maioria dos pontos — confirmado por essa auditoria, não suposto.
+**Extraído (com verificação contra o código real, não copiado cego da Skill)**:
+- **Flyway**: gotcha `CREATE INDEX CONCURRENTLY` não roda dentro da transação padrão do Flyway (precisa `.sql.conf` com `executeInTransaction=false`) + estratégia gradual add→backfill→drop pra rename de coluna. Ver `playbooks/database-change.md`.
+- **Transactional**: padrão `REQUIRES_NEW`/`@TransactionalEventListener(AFTER_COMMIT)` pra escrita auxiliar que não pode derrubar o fluxo principal — `AnalysisAuditService` já resolve isso via try/catch (efeito equivalente), documentado como alternativa se o padrão se repetir. `@Retryable`/`@EnableResilientMethods` (Spring Framework 7, substitui Spring Retry) registrado pra quando `@Version` aparecer em alguma entidade — hoje nenhuma tem. Ver `backend.md`.
+- **Redis**: verificado que `RedisStockCache` já serializa certo com Jackson 3 (`ObjectMapper` manual, tipo explícito, sem depender de default typing) — o gotcha da Skill (`GenericJacksonJsonRedisSerializer` sem `enableDefaultTyping` vira `LinkedHashMap`) não se aplica ao padrão atual, mas fica documentado pra se um cache futuro precisar de tipo polimórfico. Ver `coding-standards.md`.
+- **JPA**: confirmado que nenhuma entidade sobrescreve `equals`/`hashCode` (identidade padrão do `Object`, correto sem chave natural) e que `GenerationType.IDENTITY` (`Stock`/`ScoreHistoryEntity`/`AnalysisAudit`) desabilita batch insert silenciosamente — sem problema hoje (sem bulk insert em lugar nenhum), documentado pra quando aparecer. Ver `coding-standards.md`.
+**Rejeitado explicitamente**:
+- JPA "`FetchType.LAZY` sempre" — conflita com o EAGER deliberado de `Stock` (ver decisão acima); resto da Skill (projections, keyset pagination, `@Query`) não tem uso no projeto hoje (só derived queries).
+- `oauth2-resource-server` inteira — mismatch de arquitetura, não sobreposição. Ver nota nova em `architecture.md` ("Autenticação: OAuth2 Client, não Resource Server") pra essa distinção nunca ser perdida de vista.
+**Ver também**: `security-reviewer.md`, `backend-architect.md` (agentes já cobrem boa parte do que as Skills genéricas tentariam ensinar, com mais contexto do projeto).
+
+## Knowledge Guardian obrigatório ao final de tarefa não-trivial (resolvido em 2026-08-08)
+
+**Decisão**: rodar `knowledge-guardian` ao final de qualquer tarefa não-trivial deixa de ser opcional/experimental — vira parte do processo, igual `mvn clean compile` já é.
+**Motivo**: na auditoria de Skills externas (ver decisão acima), a primeira rodada do agente achou 2 drifts documentais **pré-existentes**, sem relação com a tarefa em andamento — `backend-architect.md` ainda citava `ddl-auto: update` (obsoleto desde 2026-08-06) e `PROJECT_DOCUMENTATION.md` listava métodos de repositório de antes da migration `Stock` (obsoleto desde 2026-08-07). Nenhum dos dois tinha sido pego por revisão manual nas duas tarefas que os causaram — prova de que drift documental passa despercebido sem uma checagem dedicada, e que o agente entrega valor real, não só teórico.
+**Consequência prática**: `CLAUDE.md` já lista `knowledge-guardian` como "sempre, no fim de qualquer tarefa não-trivial" — essa decisão só confirma que a regra escrita corresponde a um resultado medido, não é aspiracional.
+
+## Unificação de threshold de recomendação em `PortfolioService.evaluate()` (resolvido em 2026-08-08)
+
+**Decisão**: `evaluate()` passou a usar `analysis.recommendation()` (rótulo já calculado por `AnalysisParser.deriveRecommendation` dentro de `StockAnalysisService`) em vez de reimplementar seu próprio corte (`≥7.0`/`≥5.0`, sem CAUTELA). `frontend/src/app/pages/portfolio/portfolio.ts` ganhou a 4ª variante `CAUTELA`/`wait` (cor `var(--amber)`) em `evalClass`/`formatAction`/CSS, que faltava.
+**Motivo**: achado incidental do Knowledge Guardian numa varredura de consistência (não relacionado à tarefa que rodava) — mesma nota/score podia sair com rótulo diferente na tela de análise vs tela de carteira (ex.: score 7.2 = NEUTRO na análise, ATRATIVO na carteira; score 5.5 = CAUTELA na análise, mas CAUTELA nem existia em `evaluate()`).
+**Processo — 3 agentes em sequência, nenhuma decisão de negócio tomada sozinho**:
+- `financial-analyst`: julgou ser duplicação acidental, não decisão de negócio — reforçado pelo achado de que `PortfolioService.getPortfolio()` já usava o rótulo oficial (`analysis.recommendation()`), só `evaluate()` divergia. Recomendou unificar.
+- `backend-architect`: achou que `AnalysisResponse` já trazia o rótulo pronto — zero dependência nova necessária, fix de 1 linha. Identificou o gap real de frontend (CAUTELA faltando em `portfolio.ts`) que precisava entrar na mesma tarefa pra não virar regressão visual (card sem cor/borda, rótulo cru "CAUTELA" sem formatação).
+- Implementação: `PortfolioService.java` linha 106 (`String action = analysis.recommendation();`), `portfolio.ts` (`evalClass`/`formatAction`/CSS `.wait`).
+**Verificado**: `mvn clean compile` limpo, `mvn test` 13/14 (única falha é `contextLoads` exigindo Postgres local rodando — infra, não regressão), `ng build --configuration production` limpo.
+**Ver também**: `anti-patterns.md` (entrada riscada), `financial-rules.md`, `docs/PROJECT_DOCUMENTATION.md` seção 7.
+
+## Ta4j homologado, não adotado (resolvido em 2026-08-08)
+
+**Decisão**: `ta4j-core` (MIT, real, versão 0.18 confirmada no Maven Central, 2025-01-13) foi tecnicamente aprovado por spike isolado, mas **não entra no projeto agora**.
+**Spike**: série sintética reproduzível de 10.000 candles (seed=42 — determinístico, não dado de mercado real; propósito era comparar implementações, não analisar um ticker), com segmentos deliberados de caso extremo (flat/zero volatilidade, alta monotônica, baixa monotônica, alta volatilidade, gap de -30% num candle). RSI(14) via `ta4j-core` `RSIIndicator` comparado ponto a ponto contra `fetch_technical_indicators.py::_rsi` (Wilder via `ewm(com=period-1)`) — **diferença máxima e média: 0.000000 em todos os 8 segmentos**, incluindo os extremos. Única diferença real: Ta4j não tem período de aquecimento (`min_periods`) — calcula desde o índice 0 com janela parcial, pandas devolve `NaN` até o 14º ponto. Irrelevante pro uso atual (`_rsi()` só lê o último valor de uma série de ~126 candles, sempre madura); importaria só se um dia quisessem série histórica de RSI via Ta4j.
+**Motivo de não adotar apesar de aprovado**: `fetch_technical_indicators.py` calcula RSI **junto** com MACD/Bollinger/SMA/volume/sinal, numa única chamada ao sidecar Python. Trocar só o RSI por Ta4j não elimina essa chamada nem o Python — os outros 5 indicadores continuariam lá, e o projeto passaria a ter **duas fontes de verdade** pra indicador técnico (Java pro RSI, Python pro resto). Isso piora a arquitetura em vez de simplificar — ganho real só existiria se a decisão fosse migrar o pipeline de indicadores técnicos **inteiro** pra Java, questão arquitetural maior que "o RSI bate", não decidida aqui.
+**Reavaliar quando**: houver interesse real em tirar a responsabilidade de indicadores técnicos do sidecar Python. Nesse caso, rodar um segundo experimento — pipeline completo (RSI+MACD+Bollinger+SMA+volume+sinal) em Python vs em Ta4j, medindo tempo total, não só RSI isolado; pergunta diferente da respondida aqui.
+**Ver também**: spike não deixou rastro no repositório (arquivos ficaram fora do projeto, `pom.xml` do backend intocado) — reproduzível a partir desta entrada se precisar rodar de novo.
+
 ## Single-flight por ticker (lock em memória)
 
 **Decisão**: `ConcurrentHashMap<String, ReentrantLock>` por ticker em `StockAnalysisService`.

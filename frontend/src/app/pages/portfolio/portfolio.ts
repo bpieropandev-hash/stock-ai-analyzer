@@ -451,6 +451,7 @@ const MINI_CIRC = 2 * Math.PI * MINI_R;
 
       &.buy-more { border-color: rgba(0,212,170,0.25); background: rgba(0,212,170,0.04); }
       &.hold     { border-color: rgba(59,130,246,0.25); background: rgba(59,130,246,0.04); }
+      &.wait     { border-color: rgba(240,160,32,0.25); background: rgba(240,160,32,0.04); }
       &.sell     { border-color: rgba(239,68,68,0.25);  background: rgba(239,68,68,0.04); }
     }
 
@@ -464,6 +465,7 @@ const MINI_CIRC = 2 * Math.PI * MINI_R;
 
       .buy-more & { color: var(--a); }
       .hold &     { color: #3b82f6; }
+      .wait &     { color: var(--amber); }
       .sell &     { color: #ef4444; }
     }
 
@@ -565,18 +567,18 @@ export class PortfolioPage implements OnInit {
 
   evalClass(action: string): string {
     const map: Record<string, string> = {
-      'ATRATIVO': 'buy-more', 'NEUTRO': 'hold', 'DESFAVORÁVEL': 'sell',
+      'ATRATIVO': 'buy-more', 'NEUTRO': 'hold', 'CAUTELA': 'wait', 'DESFAVORÁVEL': 'sell',
       // Rótulos antigos — análises ainda cacheadas no Redis (TTL 30 min)
-      'COMPRAR_MAIS': 'buy-more', 'MANTER': 'hold', 'VENDER': 'sell',
+      'COMPRAR_MAIS': 'buy-more', 'MANTER': 'hold', 'AGUARDAR': 'wait', 'VENDER': 'sell',
     };
     return map[action] ?? '';
   }
 
   formatAction(action: string): string {
     const map: Record<string, string> = {
-      'ATRATIVO': '▲ Atrativo', 'NEUTRO': '= Neutro', 'DESFAVORÁVEL': '▼ Desfavorável',
+      'ATRATIVO': '▲ Atrativo', 'NEUTRO': '= Neutro', 'CAUTELA': '▽ Cautela', 'DESFAVORÁVEL': '▼ Desfavorável',
       // Rótulos antigos exibem a linguagem descritiva nova (Res. CVM 20/2021)
-      'COMPRAR_MAIS': '▲ Atrativo', 'MANTER': '= Neutro', 'VENDER': '▼ Desfavorável',
+      'COMPRAR_MAIS': '▲ Atrativo', 'MANTER': '= Neutro', 'AGUARDAR': '▽ Cautela', 'VENDER': '▼ Desfavorável',
     };
     return map[action] ?? action;
   }

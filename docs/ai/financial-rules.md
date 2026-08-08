@@ -27,9 +27,9 @@ Toda dimensão é limitada a `[0, 10]` (`Math.max(0, Math.min(10, score))`) ante
 
 ## Linguagem CVM-compliant — não usar verbo imperativo
 
-Resolução CVM 20/2021 restringe recomendação de investimento (linguagem tipo COMPRAR/VENDER) a analistas credenciados. O sistema usa rótulos **descritivos**: `ATRATIVO`/`NEUTRO`/`CAUTELA`/`DESFAVORÁVEL`. **Nunca reintroduzir COMPRAR/VENDER/MANTER como rótulo de recomendação em nenhuma camada** (backend, frontend, prompt) — isso quebra conformidade regulatória, não é só estilo. Cores fixas associadas: `ATRATIVO=#00d4aa`, `NEUTRO=#3b82f6`, `CAUTELA=#f59e0b`, `DESFAVORÁVEL=#ef4444`.
+Resolução CVM 20/2021 restringe recomendação de investimento (linguagem tipo COMPRAR/VENDER) a analistas credenciados. O sistema usa rótulos **descritivos**: `ATRATIVO`/`NEUTRO`/`CAUTELA`/`DESFAVORÁVEL`. **Nunca reintroduzir COMPRAR/VENDER/MANTER como rótulo de recomendação em nenhuma camada** (backend, frontend, prompt) — isso quebra conformidade regulatória, não é só estilo. Cores associadas (`recommendation-badge.ts`, via variável CSS desde 2026-08-08): `ATRATIVO=var(--accent)`, `NEUTRO=var(--blue)`, `CAUTELA=var(--amber)`, `DESFAVORÁVEL=var(--danger)`.
 
-Elegibilidade de carteira/alocação usa **score ≥ 6.0** diretamente (piso do NEUTRO), não comparação de string de rótulo — isso torna a lógica imune a rótulos antigos ainda presentes em cache Redis (TTL 30 min).
+Elegibilidade de carteira/alocação (`suggestAllocation`) usa **score ≥ 6.0** diretamente (piso do NEUTRO), não comparação de string de rótulo — isso torna a lógica imune a rótulos antigos ainda presentes em cache Redis (TTL 30 min). `PortfolioService.evaluate()` usa o mesmo rótulo oficial de `deriveRecommendation` desde 2026-08-08 (`analysis.recommendation()`, já vem calculado em `AnalysisResponse`) — antes tinha um corte próprio divergente (`≥7.0`/`≥5.0`, sem CAUTELA), corrigido após auditoria (ver `anti-patterns.md`/`decisions.md`).
 
 ## Bancos e financeiras — não penalizar alavancagem estrutural
 

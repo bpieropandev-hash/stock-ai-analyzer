@@ -31,7 +31,7 @@ Sequência de execução para todo endpoint REST novo no backend. Seguir nesta o
 ## 7. Atualizar frontend
 - Adicionar o método correspondente no `*.service.ts` certo (`stock.service.ts`/`portfolio.service.ts`) — **não** injetar `HttpClient` direto na página (ver `anti-patterns.md`, `SimulatorPage` é o exemplo do que não fazer).
 - Adicionar/atualizar interface em `core/models/models.ts` espelhando o DTO backend.
-- URL base ainda é hardcoded (`http://localhost:8080`) — não é escopo desta tarefa resolver, mas não piorar (não hardcodar de novo em um terceiro lugar).
+- URL base vem de `environment.apiUrl`/`environment.authUrl` (desde 2026-08-07, ver `decisions.md`) — nunca hardcodar `http://localhost:8080` de novo num service novo.
 
 ## Agentes a acionar
 `security-reviewer` sempre. `performance-reviewer` se o endpoint tocar cache/custo de LLM. `backend-architect` se introduzir entidade/repositório novo.

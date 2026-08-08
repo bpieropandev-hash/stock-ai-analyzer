@@ -40,16 +40,20 @@ Desde 2026-08-07, `src/environments/environment.ts` (dev, absoluto `http://local
 
 Framework: SCSS puro com variáveis CSS. **Sem Tailwind, sem Bootstrap.**
 
+Variáveis reais (`frontend/src/styles.scss`, `:root` — corrigido em 2026-08-08, doc anterior tinha nomes/hex que nunca existiram no código):
+
 ```scss
---color-bg: #0a0f1e
---color-surface: #0d1929
---color-surface-2: #111827
---color-accent: #00d4aa
---color-accent-2: #f59e0b
---color-danger: #ef4444
---color-text: #e2e8f0
---color-text-muted: #94a3b8
---color-border: rgba(255,255,255,0.08)
+--bg-base:      #040c14
+--bg-surface:   #071522
+--bg-elevated:  #0c1e30
+--accent:       #00e5c3
+--gold:         #e8a020
+--amber:        #f0a020
+--danger:       #ff3b5c
+--blue:         #3b82f6
+--text-primary:   #dde6ef
+--text-secondary: #627a8f
+--border:        rgba(255, 255, 255, 0.07)
 ```
 
 - Tipografia: Syne (títulos/números), Inter (corpo) — Google Fonts.
@@ -76,7 +80,7 @@ Framework: SCSS puro com variáveis CSS. **Sem Tailwind, sem Bootstrap.**
 - Score gauge: SVG circle com `stroke-dasharray` animado, número Syne bold centralizado.
 - Score bar: cor por valor (vermelho `<4`, amarelo `4–6.5`, verde `>6.5`).
 - Stock card dashboard: `height 120px` — ticker + preço + variação + setor.
-- Recommendation badge: linguagem descritiva (Res. CVM 20/2021 — nunca COMPRAR/VENDER); cores fixas `ATRATIVO=#00d4aa`, `NEUTRO=#3b82f6`, `CAUTELA=#f59e0b`, `DESFAVORÁVEL=#ef4444`.
+- Recommendation badge: linguagem descritiva (Res. CVM 20/2021 — nunca COMPRAR/VENDER); cores via `var(--accent)`/`var(--blue)`/`var(--amber)`/`var(--danger)`/`var(--text-secondary)` (`ATRATIVO`/`NEUTRO`/`CAUTELA`/`DESFAVORÁVEL`/sem-mapa, desde 2026-08-08 — antes era hex hardcoded, ver `anti-patterns.md`).
 - Confidence badge (desde 2026-08-07, `analysis.ts`): mesmo esquema de cor de `barColor`/`ringColor` (`≥7` verde, `≥4` amarelo, resto vermelho), breakdown no `title` nativo (sem tooltip customizado).
 - Backtest section (desde 2026-08-07, `analysis.ts`): reusa barra de score (mesmo padrão de `dim-track`/`dim-fill`) por linha, sem lib de gráfico — hand-rolled SVG/CSS como o resto da página.
 - Change card (desde 2026-08-07, `analysis.ts`): mesmo padrão visual de `summary-card`, só aparece quando `AnalysisResponse.scoreChange` não é `null` (sem análise anterior, sem card).

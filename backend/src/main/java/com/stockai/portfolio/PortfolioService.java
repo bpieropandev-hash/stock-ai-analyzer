@@ -102,8 +102,9 @@ public class PortfolioService {
             try {
                 AnalysisResponse analysis = analysisService.analyze(item.getTicker());
                 double score = analysis.analysis().scoreGeral();
-                // Linguagem descritiva (Res. CVM 20/2021) — sem verbos de ordem
-                String action = score >= 7.0 ? "ATRATIVO" : score >= 5.0 ? "NEUTRO" : "DESFAVORÁVEL";
+                // Rótulo já vem calculado por AnalysisParser.deriveRecommendation (StockAnalysisService) —
+                // nunca reimplementar threshold aqui (ver decisions.md: divergência achada e corrigida 2026-08-08)
+                String action = analysis.recommendation();
                 result.add(new EvaluationItem(
                         item.getTicker(), item.getQuantity(), item.getAveragePrice(),
                         score, action, analysis.simpleSummary()
