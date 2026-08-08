@@ -245,6 +245,7 @@ Sem índice declarado além da PK e da FK.
 | reasoning | reasoning (TEXT) — campo `"analise"` do JSON, pedido no prompt mas não extraído por `AnalysisParser` antes desta mudança |
 | resumo | resumo (TEXT) |
 | explicacaoFundamentos...explicacaoGestaoRisco | 6 colunas TEXT, uma por dimensão |
+| plausibilitySignals | plausibility_signals (TEXT) — desde 2026-08-08 (`V4`), nomes de `PlausibilitySignal` separados por vírgula; `NULL` = nenhum sinal disparado (`ScorePlausibilityGate`) |
 | createdAt | created_at |
 
 Escrita best-effort (`AnalysisAuditService`, try/catch como `ScoreHistoryService`/`ScoreAlertService`) — falha na auditoria nunca derruba a análise já gerada. Sem endpoint de leitura ainda — consulta é via SQL direto; expor via API é decisão futura, não feita nesta tarefa.

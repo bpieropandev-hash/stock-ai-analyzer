@@ -57,6 +57,11 @@ public class AnalysisAudit {
     @Column(name = "explicacao_gestao_risco", columnDefinition = "TEXT")
     private String explicacaoGestaoRisco;
 
+    // Nomes de PlausibilitySignal separados por vírgula; null = nenhum sinal disparado.
+    // Nunca lido de volta pelo score/recomendação — só auditoria (ver ScorePlausibilityGate).
+    @Column(name = "plausibility_signals", columnDefinition = "TEXT")
+    private String plausibilitySignals;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -67,7 +72,8 @@ public class AnalysisAudit {
     public AnalysisAudit(Long scoreHistoryId, String promptFull, String rawResponse, String reasoning,
                          String resumo, String explicacaoFundamentos, String explicacaoValuation,
                          String explicacaoRegimeMomentum, String explicacaoSentimentoInstitucional,
-                         String explicacaoRetornoAcionista, String explicacaoGestaoRisco) {
+                         String explicacaoRetornoAcionista, String explicacaoGestaoRisco,
+                         String plausibilitySignals) {
         this.scoreHistoryId = scoreHistoryId;
         this.promptFull = promptFull;
         this.rawResponse = rawResponse;
@@ -79,6 +85,7 @@ public class AnalysisAudit {
         this.explicacaoSentimentoInstitucional = explicacaoSentimentoInstitucional;
         this.explicacaoRetornoAcionista = explicacaoRetornoAcionista;
         this.explicacaoGestaoRisco = explicacaoGestaoRisco;
+        this.plausibilitySignals = plausibilitySignals;
         this.createdAt = LocalDateTime.now();
     }
 
@@ -94,5 +101,6 @@ public class AnalysisAudit {
     public String getExplicacaoSentimentoInstitucional() { return explicacaoSentimentoInstitucional; }
     public String getExplicacaoRetornoAcionista() { return explicacaoRetornoAcionista; }
     public String getExplicacaoGestaoRisco() { return explicacaoGestaoRisco; }
+    public String getPlausibilitySignals() { return plausibilitySignals; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 }

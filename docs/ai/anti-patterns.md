@@ -39,6 +39,8 @@ Coisas encontradas no código que **não devem ser copiadas como padrão** para 
 - ~~**Sem tabela de auditoria**~~ Resolvido em 2026-08-07 — `analysis_audit`, ver `decisions.md`.
 - ~~**`huggingface.token` configurado sem consumidor**~~ Resolvido em 2026-08-07 — property Spring removida (código morto de verdade); consumidor real é `finbert_sentiment.py` (Python, lê `os.environ` direto). Ver `decisions.md`.
 
+- **Thresholds do `ScorePlausibilityGate` duplicados do texto do prompt, sem vínculo em compilação/execução** (achado na revisão final de 2026-08-08, ver `decisions.md`) — os 6 números hardcoded no gate (`7`, `3.5`, `2`, `7.5`, `4`) espelham regras que também existem como texto em `prompts.md`/`SectorPromptConfig`/`financial-rules.md`. Se o threshold do prompt mudar (ex.: cap de VAREJO 4→3), o gate não quebra nem avisa — fica desatualizado silenciosamente. Não é defeito atual (gate é warn-only, não corrompe score), é dívida de manutenção. **Direção futura, não decidida ainda**: extrair a regra financeira pra uma fonte única que alimente tanto o texto do prompt quanto o gate, em vez de duplicar o número nos dois lugares — evita divergência silenciosa entre "o que o LLM é instruído a fazer" e "o que o gate verifica que ele fez". Não implementar sem decisão explícita — é reformulação de como regra financeira é representada no sistema, não um fix pontual.
+
 ## Regra geral
 
 Ao tocar em qualquer arquivo relacionado a um item desta lista, mencionar o débito encontrado ao usuário antes de decidir se corrige, contorna ou ignora — não corrigir silenciosamente um item de roadmap não solicitado, e não repetir o padrão em código novo.

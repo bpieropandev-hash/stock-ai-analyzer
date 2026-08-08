@@ -5,6 +5,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * Persistência best-effort do snapshot de auditoria — nunca deve derrubar uma
  * análise que já foi gerada e servida ao usuário (mesmo padrão defensivo de
@@ -23,7 +26,7 @@ public class AnalysisAuditService {
 
     @Transactional
     public void save(ScoreHistoryEntity scoreHistory, String prompt, String rawResponse,
-                     StockAnalysis analysis, String reasoning) {
+                     StockAnalysis analysis, String reasoning, List<PlausibilitySignal> plausibilitySignals) {
         try {
             repository.save(new AnalysisAudit(
                     scoreHistory.getId(),
@@ -36,7 +39,9 @@ public class AnalysisAuditService {
                     analysis.regimeMomentum().explicacao(),
                     analysis.sentimentoInstitucional().explicacao(),
                     analysis.retornoAcionista().explicacao(),
-                    analysis.gestaoRisco().explicacao()
+                    analysis.gestaoRisco().explicacao(),
+                    plausibilitySignals.isEmpty() ? null
+                            : plausibilitySignals.stream().map(Enum::name).collect(Collectors.joining(","))
             ));
         } catch (Exception e) {
             log.warn("Falha ao salvar auditoria de análise para {}: {}", analysis.ticker(), e.getMessage());

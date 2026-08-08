@@ -197,14 +197,26 @@ public class StockAnalysisService {
         List<ScoreHistoryEntity> priorHistory = scoreHistoryService.getFullHistory(ticker);
         ScoreHistoryEntity previousScore = priorHistory.isEmpty() ? null : priorHistory.getLast();
 
+        // Movido de depois de saveScore pra cá (era só ordenação incidental, não dependência real —
+        // os 4 inputs já existem desde a Fase 1/2) pra alimentar o gate de plausibilidade antes da
+        // persistência. Ver decisions.md.
+        ScoreConfidence confidence = ScoreConfidenceCalculator.calculate(
+                fundamentals, sentiment, technical, benchmarkInfo.dynamic());
+
+        // Gate de plausibilidade — só SINALIZA inconsistência numérica, nunca corrige/bloqueia o score.
+        List<PlausibilitySignal> plausibilitySignals =
+                ScorePlausibilityGate.check(analysis, fundamentals, confidence, sector);
+        if (!plausibilitySignals.isEmpty()) {
+            log.warn("Sinais de implausibilidade pós-score para {}: {}", ticker, plausibilitySignals);
+        }
+
         ScoreHistoryEntity savedScore = scoreHistoryService.saveScore(analysis, modelUsed, PROMPT_VERSION);
         if (savedScore != null) {
-            analysisAuditService.save(savedScore, prompt, rawResponse, analysis, parsed.reasoning());
+            analysisAuditService.save(savedScore, prompt, rawResponse, analysis, parsed.reasoning(),
+                    plausibilitySignals);
         }
         scoreAlertService.checkAndAlert(analysis);
 
-        ScoreConfidence confidence = ScoreConfidenceCalculator.calculate(
-                fundamentals, sentiment, technical, benchmarkInfo.dynamic());
         ScoreChangeExplanation scoreChange = previousScore != null
                 ? ScoreChangeCalculator.compute(previousScore, analysis)
                 : null;

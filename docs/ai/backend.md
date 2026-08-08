@@ -71,6 +71,14 @@ Repositórios: só derived queries (nenhum `@Query` customizado no projeto todo)
 
 `ScoreConfidence`/`ScoreConfidenceCalculator` (função pura, `com.stockai.analysis`) — meta-score 0-10 de qualidade do dado (não confundir com `scoreGeral`, que mede qualidade da empresa). Agrega `fundamentalsSource`, `SentimentResult.source`/`confidence`, presença de `TechnicalIndicators`, e `SectorBenchmarks.describeWithMeta().dynamic()`. Exposto em `AnalysisResponse.confidence`. Ver `decisions.md` pra fórmula exata.
 
+## Gate de plausibilidade pós-score (desde 2026-08-08)
+
+`ScorePlausibilityGate`/`PlausibilitySignal` (função pura, `com.stockai.analysis`) — roda depois do parse da resposta do LLM e do cálculo de score, só **sinaliza** inconsistência numérica entre dimensões/`scoreGeral` e os dados que as sustentam (`StockAnalysis`, `StockFundamentals`, `ScoreConfidence`, `SectorType`). Nunca corrige nem bloqueia — não é lido de volta pelo LLM nem altera `AnalysisResponse`. As 5 regras espelham travas que já existem como texto na rubrica do prompt (ver `prompts.md`), verificadas em vez de só pedidas. Validado por `financial-analyst` (thresholds, exceção setorial) e `backend-architect` (ponto de integração, tipo de saída) antes da implementação — ver `decisions.md`.
+
+Persistido em `analysis_audit.plausibility_signals` (`V4__add_plausibility_signals_to_analysis_audit.sql`, coluna `TEXT`, nomes do enum separados por vírgula, `NULL` se nenhum sinal) e logado em `WARN` quando não-vazio. Sem endpoint de leitura ainda — mesmo escopo mínimo de `analysis_audit`.
+
+Consequência de integração: o cálculo de `ScoreConfidence` em `StockAnalysisService.doAnalyze` foi movido de depois de `saveScore` pra antes (os 4 inputs já existiam desde a Fase 1/2 — era ordenação incidental, não dependência real), pra alimentar o gate antes da persistência.
+
 ## Explicação de mudança de score (desde 2026-08-07)
 
 `ScoreChangeExplanation`/`ScoreChangeCalculator` (função pura) — compara a análise atual com o registro anterior em `score_history` (buscado **antes** de `saveScore`), aponta a dimensão de maior `|delta|` e reusa a `explicacao` que o LLM já dá pra ela. `null` na primeira análise de um ticker. Exposto em `AnalysisResponse.scoreChange`. Diferente de `StockAlert`/`ScoreAlertService` (que só dispara acima de threshold 1.5, sem explicar o porquê) — isso mostra sempre que há histórico. Ver `decisions.md`.
