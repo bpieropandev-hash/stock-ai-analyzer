@@ -154,14 +154,14 @@
 			</plugin>
 			<plugin>
 				<!-- BLOQUEADO — verificado, não é erro de config: o ASM interno do
-				     SpotBugs 4.9.3.0 não lê bytecode do Java 26 ainda
+				     SpotBugs 4.10.3.0 não lê bytecode do Java 26 ainda
 				     (IllegalArgumentException: Unsupported class file major version 70).
 				     Plugin fica declarado mas inerte (sem <executions>, não roda no
 				     build padrão) pra reativar assim que uma versão compatível sair.
 				     Ver decisions.md. -->
 				<groupId>com.github.spotbugs</groupId>
 				<artifactId>spotbugs-maven-plugin</artifactId>
-				<version>4.9.3.0</version>
+				<version>4.10.3.0</version>
 			</plugin>
 		</plugins>
 	</build>
