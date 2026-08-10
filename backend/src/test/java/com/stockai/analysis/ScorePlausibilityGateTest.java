@@ -172,6 +172,69 @@ class ScorePlausibilityGateTest {
     }
 
     @Test
+    void sinalizaFundamentosAltoComLucroTrimestralNegativo() {
+        StockAnalysis analysis = analysis(8.0, 5.0, 5.0, 5.0, 3.0, 5.0, 5.2);
+        StockFundamentals fundamentals = fundamentals(BigDecimal.TEN, BigDecimal.ONE, null, List.of(),
+                List.of(new QuarterlyResult("2026-06-30", BigDecimal.valueOf(1_000_000), BigDecimal.valueOf(-50_000))),
+                null);
+
+        List<PlausibilitySignal> signals =
+                ScorePlausibilityGate.check(analysis, fundamentals, CONFIANCA_ALTA, SectorType.INDUSTRIA);
+
+        assertThat(signals).containsExactly(PlausibilitySignal.FUNDAMENTOS_ALTO_LUCRO_INCONSISTENTE);
+    }
+
+    @Test
+    void sinalizaFundamentosAltoComCrescimentoDeLucroNegativo() {
+        StockAnalysis analysis = analysis(9.0, 5.0, 5.0, 5.0, 3.0, 5.0, 5.3);
+        StockFundamentals fundamentals = fundamentals(BigDecimal.TEN, BigDecimal.ONE, null, List.of(), List.of(),
+                BigDecimal.valueOf(-0.1));
+
+        List<PlausibilitySignal> signals =
+                ScorePlausibilityGate.check(analysis, fundamentals, CONFIANCA_ALTA, SectorType.INDUSTRIA);
+
+        assertThat(signals).containsExactly(PlausibilitySignal.FUNDAMENTOS_ALTO_LUCRO_INCONSISTENTE);
+    }
+
+    @Test
+    void naoSinalizaFundamentosAltoComLucroConsistente() {
+        StockAnalysis analysis = analysis(8.0, 5.0, 5.0, 5.0, 3.0, 5.0, 5.2);
+        StockFundamentals fundamentals = fundamentals(BigDecimal.TEN, BigDecimal.ONE, null, List.of(),
+                List.of(new QuarterlyResult("2026-06-30", BigDecimal.valueOf(1_000_000), BigDecimal.valueOf(50_000))),
+                BigDecimal.valueOf(0.1));
+
+        List<PlausibilitySignal> signals =
+                ScorePlausibilityGate.check(analysis, fundamentals, CONFIANCA_ALTA, SectorType.INDUSTRIA);
+
+        assertThat(signals).isEmpty();
+    }
+
+    @Test
+    void naoSinalizaFundamentosAbaixoDoBucketAltoMesmoComLucroInconsistente() {
+        StockAnalysis analysis = analysis(7.9, 5.0, 5.0, 5.0, 3.0, 5.0, 5.15);
+        StockFundamentals fundamentals = fundamentals(BigDecimal.TEN, BigDecimal.ONE, null, List.of(), List.of(),
+                BigDecimal.valueOf(-0.1));
+
+        List<PlausibilitySignal> signals =
+                ScorePlausibilityGate.check(analysis, fundamentals, CONFIANCA_ALTA, SectorType.INDUSTRIA);
+
+        assertThat(signals).isEmpty();
+    }
+
+    @Test
+    void naoRestringeFundamentosAltoLucroInconsistenteAUmSetor() {
+        // Ao contrário da Regra 5 (só VAREJO), esta regra é genérica — confirma que dispara em VAREJO também
+        StockAnalysis analysis = analysis(8.0, 5.0, 5.0, 5.0, 3.0, 5.0, 5.2);
+        StockFundamentals fundamentals = fundamentals(BigDecimal.TEN, BigDecimal.ONE, null, List.of(), List.of(),
+                BigDecimal.valueOf(-0.1));
+
+        List<PlausibilitySignal> signals =
+                ScorePlausibilityGate.check(analysis, fundamentals, CONFIANCA_ALTA, SectorType.VAREJO);
+
+        assertThat(signals).containsExactly(PlausibilitySignal.FUNDAMENTOS_ALTO_LUCRO_INCONSISTENTE);
+    }
+
+    @Test
     void acumulaMultiplosSinaisNaMesmaAnalise() {
         StockAnalysis analysis = analysis(8.0, 8.0, 2.0, 5.0, 5.0, 5.0, 5.0);
         StockFundamentals fundamentals = fundamentals(

@@ -20,7 +20,10 @@ public enum PlausibilitySignal {
             "scoreGeral acima do piso de ATRATIVO (>7.5) mas confiança na qualidade do dado é baixa (<4)."),
     VAREJO_RETORNO_ALTO_SEM_LUCRO_CONSISTENTE(
             "Setor VAREJO com Retorno ao Acionista acima de 4 apesar de lucro trimestral inconsistente — " +
-            "viola o hard cap já escrito na instrução setorial ('sem lucro consistente, retornoAcionista não pode passar de 4').");
+            "viola o hard cap já escrito na instrução setorial ('sem lucro consistente, retornoAcionista não pode passar de 4')."),
+    FUNDAMENTOS_ALTO_LUCRO_INCONSISTENTE(
+            "Fundamentos pontuado no bucket 8-10 (que exige 'lucro crescente nos trimestres' pela rubrica) " +
+            "apesar de lucro trimestral inconsistente — qualquer setor, não é regra específica de VAREJO.");
 
     private final String description;
 

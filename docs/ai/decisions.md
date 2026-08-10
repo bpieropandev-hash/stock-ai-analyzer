@@ -189,6 +189,16 @@ Documentado por completude — decisão já superada acima, mas o raciocínio or
 **Verificado**: `mvn clean compile` limpo, `ScorePlausibilityGateTest` 14/14 (casos positivos e negativos de cada regra, incluindo acúmulo de múltiplos sinais na mesma análise e não-disparo por falta de dado), suíte completa 27/28 (única falha é `contextLoads`, infra — `GOOGLE_CLIENT_ID` ausente no shell local, não regressão).
 **Ver também**: `backend.md`, `financial-rules.md`, `prompts.md`.
 
+## 6ª regra do `ScorePlausibilityGate` — generalização da Regra 5 (resolvido em 2026-08-08)
+
+**Decisão**: `FUNDAMENTOS_ALTO_LUCRO_INCONSISTENTE` — `fundamentos.score() >= 8 && lucroInconsistente(fundamentals)`, qualquer setor (sem sector gate), reusa 100% o helper já existente da Regra 5. Só sinaliza, mesmo padrão warn-only das outras 5.
+**Motivo**: auditoria de validação financeira real (10 tickers B3, backend real + Gemini real, 2026-08-08) achou WEGE3 com `Fundamentos.score=8.0` (bucket 8-10 da rubrica exige "lucro crescente nos trimestres") enquanto a própria explicação da dimensão dizia "apesar do crescimento negativo de receita e lucro YoY" — mesma classe de contradição da Regra 5 (MGLU3), só que na dimensão `Fundamentos`, não setorial.
+**Correção de registro**: a auditoria original (relatório publicado) afirmou incorretamente que a Regra 5 "nunca foi implementada" — **estava errada**. A Regra 5 já estava commitada (`6ca6ff0`) antes daquela auditoria rodar. Checagem direta em `analysis_audit.plausibility_signals` confirmou que ela disparou corretamente pro MGLU3 (`VAREJO_RETORNO_ALTO_SEM_LUCRO_CONSISTENTE`), sem alterar `retornoAcionista.score` (que seguiu 9.0 no `AnalysisResponse`) — comportamento correto, não bug. `financial-analyst` revisou a auditoria e recomendou essa única regra nova (não generalizar mais, não criar regra espelhada pra score baixo, não validação semântica no Gate).
+**Rejeitado explicitamente** (parecer do `financial-analyst`): regra espelho pra `RetornoAcionista` subestimado do WEGE3 (n=1, subestimação é menos perigosa que superestimação, fica como débito); generalizar Regra 5 pra outros setores sem evidência real; verificação semântica texto↔score genérica no Gate (não é determinística, categoria diferente — ficaria pra um mecanismo tipo LLM-as-judge, fora de escopo).
+**Achado operacional à parte, não resolvido aqui**: nenhum dashboard/rotina consome `plausibility_signals` sistematicamente hoje — é log + coluna que ninguém revisa de forma recorrente. Mencionado pelo `financial-analyst` como risco maior que expandir regras; não endereçado nesta tarefa.
+**Verificado**: `mvn clean compile` limpo, `ScorePlausibilityGateTest` 19/19 (14 anteriores + 5 novos: sinaliza por trimestre negativo, sinaliza por `earningsGrowth` negativo, não sinaliza com lucro consistente, não sinaliza abaixo do bucket 8, não é restrita a setor), suíte completa 33/33 (Postgres real rodando + `.env` com credenciais reais desta sessão — `contextLoads` passou pela primeira vez na sessão).
+**Ver também**: `backend.md`, `anti-patterns.md` (contagem de thresholds atualizada pra 6).
+
 ## Single-flight por ticker (lock em memória)
 
 **Decisão**: `ConcurrentHashMap<String, ReentrantLock>` por ticker em `StockAnalysisService`.

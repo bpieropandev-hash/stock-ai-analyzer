@@ -11,7 +11,7 @@ import java.util.List;
  * nunca é lido de volta pelo LLM. Função pura, mesmo estilo de
  * ScoreConfidenceCalculator/ScoreChangeCalculator.
  *
- * As 5 regras espelham travas/instruções que já existem como texto na rubrica
+ * As 6 regras espelham travas/instruções que já existem como texto na rubrica
  * do prompt (ver prompts.md) — não são regras novas inventadas, são as mesmas
  * regras verificadas em vez de só pedidas. Thresholds validados por
  * financial-analyst; ponto de integração e tipo de saída validados por
@@ -55,6 +55,13 @@ public final class ScorePlausibilityGate {
         if (sector == SectorType.VAREJO && analysis.retornoAcionista().score() > 4
                 && lucroInconsistente(fundamentals)) {
             signals.add(PlausibilitySignal.VAREJO_RETORNO_ALTO_SEM_LUCRO_CONSISTENTE);
+        }
+
+        // Bucket 8-10 de Fundamentos exige "lucro crescente nos trimestres" (prompts.md) — genérica,
+        // não setorial (achado real: WEGE3, fundamentos=8 com crescimento negativo no próprio texto).
+        // Reusa o mesmo helper da Regra 5, sem sector gate.
+        if (analysis.fundamentos().score() >= 8 && lucroInconsistente(fundamentals)) {
+            signals.add(PlausibilitySignal.FUNDAMENTOS_ALTO_LUCRO_INCONSISTENTE);
         }
 
         return List.copyOf(signals);

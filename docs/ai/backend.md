@@ -73,9 +73,13 @@ Repositórios: só derived queries (nenhum `@Query` customizado no projeto todo)
 
 ## Gate de plausibilidade pós-score (desde 2026-08-08)
 
-`ScorePlausibilityGate`/`PlausibilitySignal` (função pura, `com.stockai.analysis`) — roda depois do parse da resposta do LLM e do cálculo de score, só **sinaliza** inconsistência numérica entre dimensões/`scoreGeral` e os dados que as sustentam (`StockAnalysis`, `StockFundamentals`, `ScoreConfidence`, `SectorType`). Nunca corrige nem bloqueia — não é lido de volta pelo LLM nem altera `AnalysisResponse`. As 5 regras espelham travas que já existem como texto na rubrica do prompt (ver `prompts.md`), verificadas em vez de só pedidas. Validado por `financial-analyst` (thresholds, exceção setorial) e `backend-architect` (ponto de integração, tipo de saída) antes da implementação — ver `decisions.md`.
+`ScorePlausibilityGate`/`PlausibilitySignal` (função pura, `com.stockai.analysis`) — roda depois do parse da resposta do LLM e do cálculo de score, só **sinaliza** inconsistência numérica entre dimensões/`scoreGeral` e os dados que as sustentam (`StockAnalysis`, `StockFundamentals`, `ScoreConfidence`, `SectorType`). Nunca corrige nem bloqueia — não é lido de volta pelo LLM nem altera `AnalysisResponse`. As 6 regras espelham travas que já existem como texto na rubrica do prompt (ver `prompts.md`), verificadas em vez de só pedidas. Validado por `financial-analyst` (thresholds, exceção setorial) e `backend-architect` (ponto de integração, tipo de saída) antes da implementação — ver `decisions.md`.
+
+6ª regra (`FUNDAMENTOS_ALTO_LUCRO_INCONSISTENTE`, desde 2026-08-08): generaliza a lógica da Regra 5 (antes só VAREJO) — bucket 8-10 de Fundamentos exige "lucro crescente nos trimestres" pela rubrica, qualquer setor. Reusa o mesmo `lucroInconsistente()` sem sector gate.
 
 Persistido em `analysis_audit.plausibility_signals` (`V4__add_plausibility_signals_to_analysis_audit.sql`, coluna `TEXT`, nomes do enum separados por vírgula, `NULL` se nenhum sinal) e logado em `WARN` quando não-vazio. Sem endpoint de leitura ainda — mesmo escopo mínimo de `analysis_audit`.
+
+**Confirmado em produção, 2026-08-08**: auditoria de validação financeira real (10 tickers, backend real + Gemini real) achou MGLU3 com `retornoAcionista.score=9.0` apesar de lucro trimestral inconsistente — checagem direta em `analysis_audit.plausibility_signals` confirmou que a Regra 5 disparou (`VAREJO_RETORNO_ALTO_SEM_LUCRO_CONSISTENTE`), sem alterar o score, exatamente como desenhado. Primeira confirmação empírica do gate funcionando em análise real, não só em teste unitário.
 
 Consequência de integração: o cálculo de `ScoreConfidence` em `StockAnalysisService.doAnalyze` foi movido de depois de `saveScore` pra antes (os 4 inputs já existiam desde a Fase 1/2 — era ordenação incidental, não dependência real), pra alimentar o gate antes da persistência.
 
