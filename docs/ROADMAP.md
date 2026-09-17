@@ -130,7 +130,7 @@ Sprint 2 completo (auditoria + FinBERT). Reranker de RAG segue adiado por acordo
 - `scoreGeral` calculado em Java (`AnalysisParser`) — aritmética do LLM descartada; clamp 0–10; dimensão ausente é erro
 - Prompt v2 (`PROMPT_VERSION = "v2.0"`): rubrica com âncoras objetivas, benchmarks setoriais, data + ano eleitoral, campo de raciocínio antes dos scores
 - Removida alegação falsa de FinBERT (sentimento é lexical e o prompt agora diz isso)
-- Temperature 0 nos dois modelos (Gemini 2.5 Flash / Groq qwen3-32b)
+- Temperature 0 nos dois modelos (Gemini 2.5 Flash / Groq qwen3.6-27b)
 - RAG sem feedback loop — recupera só `historical_fundamentals`, nunca análises passadas
 - Expectativas Focus (BCB/Olinda) no macro; `debtToEquity` normalizado na origem
 

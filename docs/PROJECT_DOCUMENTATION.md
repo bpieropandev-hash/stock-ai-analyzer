@@ -99,7 +99,7 @@ Cada um dos 7 pacotes acima é uma pasta única sem subdivisão adicional (ex.: 
 | Cache | Redis 7 (`redis:7-alpine`) | Cache de cotações, análises (30 min), benchmarks setoriais (24h); acesso via SCAN (nunca KEYS, evita bloqueio em produção) |
 | Orquestração de LLM | LangChain4j 1.11.0 (`langchain4j-ollama`, `langchain4j-open-ai`) + `langchain4j-pgvector` 1.10.0-beta18 | Abstrai Gemini/Groq/Ollama atrás da mesma interface `ChatModel`/`EmbeddingModel`; versão do módulo pgvector pinada separadamente porque tem ciclo de release próprio (comentário explícito no `pom.xml`) |
 | LLM primário | Gemini 2.5 Flash (via endpoint OpenAI-compatible do Google) | Chamado através de `OpenAiChatModel`, não de um módulo Gemini nativo do LangChain4j |
-| LLM fallback | Groq `qwen/qwen3-32b` (via endpoint OpenAI-compatible da Groq) | Garante disponibilidade quando Gemini falha |
+| LLM fallback | Groq `qwen/qwen3.6-27b` (via endpoint OpenAI-compatible da Groq) | Garante disponibilidade quando Gemini falha. Era `qwen/qwen3-32b` até 2026-08-10 — modelo tinha sido descomissionado pela Groq, fallback ficava 404 silenciosamente até ser confirmado via `GET /v1/models` real |
 | Embeddings | `nomic-embed-text` via Ollama local (768 dimensões) | Evita custo/latência de API de embedding hospedada; dimensão fixada em config para não depender de round-trip HTTP no startup |
 | Frontend | Angular 21 (standalone components, sem NgModules) | `@angular/core` `^21.2.0`; roteamento via `loadComponent` lazy |
 | Linguagem frontend | TypeScript 5.9 | — |
@@ -421,7 +421,7 @@ Reusa o mesmo pipeline de análise por ticker (acima) para cada posição da car
 
 ### Modelos utilizados
 - **Gemini 2.5 Flash** — modelo primário, acessado via endpoint OpenAI-compatible do Google (`https://generativelanguage.googleapis.com/v1beta/openai/`), não via SDK/módulo nativo do Gemini.
-- **Groq `qwen/qwen3-32b`** — fallback, acessado via endpoint OpenAI-compatible da Groq (`https://api.groq.com/openai/v1`).
+- **Groq `qwen/qwen3.6-27b`** — fallback, acessado via endpoint OpenAI-compatible da Groq (`https://api.groq.com/openai/v1`).
 - Ambos configurados via `dev.langchain4j.model.openai.OpenAiChatModel`, `responseFormat("json_object")`, **`temperature(0.0)`** (determinismo — variância dispararia alertas de score por ruído), `maxTokens(8192)`.
 - **Não há um framework de agentes** (nenhum uso de tool-calling/function-calling do LLM) — o LLM só recebe um prompt de texto único e devolve JSON. Toda a "orquestração de ferramentas" (busca de dados, RAG, cálculo) acontece em Java **antes** da chamada ao LLM, não pelo próprio modelo.
 
@@ -470,7 +470,7 @@ Google (Gemini), Groq, Ollama local (self-hosted). Ambos LLMs acessados pela mes
 - **Benchmarks setoriais estáticos** (fallback) são faixas hardcoded, usadas quando não há ≥3 pares líquidos com dado válido — podem ficar desatualizadas.
 - ~~**Sem tabela de auditoria completa**~~ Resolvido em 2026-08-07 — `analysis_audit` (FK 1:1 com `score_history`) persiste prompt exato, resposta bruta do LLM, o campo `"analise"` (raciocínio pedido no prompt mas descartado no parsing até então) e a `explicacao` de cada uma das 6 dimensões. Ver `decisions.md`.
 - **Sem tool-calling real** — o LLM não pode pedir mais dados; se o contexto fornecido for insuficiente, ele tem que assumir (mitigado pela instrução "não invente sinal" no prompt).
-- **Modelos hospedados por nome, não por hash de versão** — "gemini-2.5-flash" e "qwen/qwen3-32b" podem ser atualizados pelos provedores sem aviso, quebrando a comparabilidade de scores entre datas mesmo com `PROMPT_VERSION` fixo.
+- **Modelos hospedados por nome, não por hash de versão** — "gemini-2.5-flash" e "qwen/qwen3.6-27b" podem ser atualizados ou descomissionados pelos provedores sem aviso, quebrando a comparabilidade de scores entre datas mesmo com `PROMPT_VERSION` fixo. Já aconteceu de verdade: `qwen/qwen3-32b` (o fallback até 2026-08-10) foi descomissionado pela Groq sem aviso — ver `anti-patterns.md`.
 - **EV/EBITDA, payout ratio e margem EBITDA não são coletados** — o prompt setorial de LOGISTICA pede EBITDA mas o dado nunca é fornecido (roadmap P1-7, bug conhecido).
 - **Sem benchmark relativo a IBOV/CDI** no momentum — não distingue "a ação caiu" de "o mercado todo caiu" (roadmap P1-8).
 
@@ -650,7 +650,7 @@ Fonte: `docs/ROADMAP.md` (estado em 2026-06-12) + lacunas adicionais identificad
 
 - **Combinação bleeding-edge Java 26 + Spring Boot 4.0.6** — versões muito recentes, risco de instabilidade de ecossistema/tooling e de compatibilidade de bibliotecas de terceiros.
 - **Dependência de fontes de dados não-oficiais/instáveis** — yfinance é biblioteca não-oficial (sujeita a quebra sem aviso), ZIPs da CVM são grandes e o cache tem janela de 24h que pode servir dado levemente desatualizado.
-- **Determinismo aparente, mas não garantido** — temperature 0 não impede que os provedores (Google/Groq) atualizem o modelo por trás do mesmo nome (`gemini-2.5-flash`, `qwen/qwen3-32b`), quebrando comparabilidade histórica de score mesmo com `PROMPT_VERSION` estável.
+- **Determinismo aparente, mas não garantido** — temperature 0 não impede que os provedores (Google/Groq) atualizem ou descomissionem o modelo por trás do mesmo nome (`gemini-2.5-flash`, `qwen/qwen3.6-27b`), quebrando comparabilidade histórica de score mesmo com `PROMPT_VERSION` estável.
 - **Ausência de rate limiting expõe custo direto** — cada miss de cache em endpoint público dispara uma chamada de LLM paga, sem limite algum de requisições por IP/usuário.
 - **Cobertura de testes muito baixa**, principalmente no frontend (efetivamente zero) e em serviços críticos do backend (`ComparisonService`, `BacktestService`, `SectorClassifier` sem nenhum teste).
 - ~~**Ausência de tabela de auditoria completa**~~ Resolvido em 2026-08-07 — `analysis_audit` guarda prompt/resposta exatos, ver `decisions.md`.

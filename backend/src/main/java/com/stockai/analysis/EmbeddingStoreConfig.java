@@ -80,15 +80,34 @@ public class EmbeddingStoreConfig {
                 .build();
     }
 
+    // "qwen/qwen3-32b" foi descomissionado pela Groq (confirmado em 2026-08-10 via
+    // GET /v1/models real — respondia 404 model_not_found). Isso deixava o fallback
+    // Gemini->Groq morto: qualquer falha do Gemini virava indisponibilidade total em
+    // vez de degradar pro Groq. Ver docs/ai/anti-patterns.md.
+    //
+    // maxTokens 8192->4096 (2026-08-10): mesmo com o modelo certo, uma chamada
+    // isolada real (concurrency=1) ainda tomava 413 da Groq — tier "on_demand" desta
+    // conta reserva o max_tokens inteiro contra o limite de 8000 TPM antes de gerar,
+    // então prompt (~1.5k tokens) + maxTokens(8192) sempre estourava. As 10 respostas
+    // reais capturadas em analysis_audit nunca passaram de ~700 tokens — 4096 mantém
+    // folga de ~6x sem aproximar do teto de TPM. Ver docs/ai/decisions.md.
+    //
+    // reasoningEffort("none") (2026-09-17): "qwen/qwen3.6-27b" é um modelo de
+    // raciocínio — sem isso, ele gasta parte do budget de maxTokens num bloco
+    // <think> interno antes do JSON, e picos de resposta longa estouravam os
+    // 4096 tokens (400 json_validate_failed, failed_generation vazio). Validado
+    // via tools/promptfoo (PETR4+VALE3, reasoning_effort=none): 0 erros vs. 10/10
+    // antes, completion_tokens 682/723. Ver docs/ai/decisions.md.
     @Bean("groqChatModel")
     public ChatModel groqChatModel() {
         return OpenAiChatModel.builder()
                 .baseUrl("https://api.groq.com/openai/v1")
                 .apiKey(groqApiKey)
-                .modelName("qwen/qwen3-32b")
+                .modelName("qwen/qwen3.6-27b")
                 .responseFormat("json_object")
                 .temperature(0.0)
-                .maxTokens(8192)
+                .maxTokens(4096)
+                .reasoningEffort("none")
                 .build();
     }
 

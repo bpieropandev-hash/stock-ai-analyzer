@@ -5,9 +5,9 @@ Detalhe de prompt: ver `prompts.md`. Detalhe de RAG/embeddings: ver `rag.md`. Re
 ## Modelos
 
 - **Gemini 2.5 Flash** — primário, via endpoint OpenAI-compatible do Google (`https://generativelanguage.googleapis.com/v1beta/openai/`). **Não** é o módulo Gemini nativo do LangChain4j.
-- **Groq `qwen/qwen3-32b`** — fallback, via endpoint OpenAI-compatible da Groq (`https://api.groq.com/openai/v1`).
-- Ambos: `dev.langchain4j.model.openai.OpenAiChatModel`, `responseFormat("json_object")`, `temperature(0.0)`, `maxTokens(8192)`.
-- Bean config: `EmbeddingStoreConfig.java` (qualifiers `geminiChatModel` / `groqChatModel`).
+- **Groq `qwen/qwen3.6-27b`** — fallback, via endpoint OpenAI-compatible da Groq (`https://api.groq.com/openai/v1`). Era `qwen/qwen3-32b` até 2026-08-10, quando se confirmou (real, via `GET /v1/models`) que a Groq tinha descomissionado o modelo — o fallback ficava 404 silenciosamente, ver `anti-patterns.md`.
+- Ambos: `dev.langchain4j.model.openai.OpenAiChatModel`, `responseFormat("json_object")`, `temperature(0.0)`. `maxTokens`: 8192 no Gemini, **4096 no Groq** (tier `on_demand` da conta reserva o `max_tokens` inteiro contra o limite de 8000 TPM antes de gerar — 8192 estourava mesmo sem uso real). Groq também usa `reasoningEffort("none")` — `qwen/qwen3.6-27b` é modelo de raciocínio e sem isso queima budget num bloco `<think>` interno antes do JSON. Ver `decisions.md`.
+- Bean config: `EmbeddingStoreConfig.java` (qualifiers `geminiChatModel` / `groqChatModel`). Ambos já retriam automaticamente (LangChain4j `OpenAiChatModel`, `maxRetries=2` default, backoff exponencial com jitter) — `429`/5xx não precisam de retry próprio no código de aplicação.
 
 Por que a mesma abstração (`OpenAiChatModel`) para os dois: trocar provedor primário/fallback no futuro é troca de config, não reescrita de integração.
 

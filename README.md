@@ -19,7 +19,7 @@ AI-powered investment analysis platform for Brazilian stocks (B3). Fetches quote
 | Frontend | Angular 21, TypeScript |
 | Database | PostgreSQL (JPA: alerts, score history, portfolio) + pgvector (embeddings), Redis (cache) |
 | Data source | yfinance (Python) for B3 quotes and fundamentals; BCB open APIs for macro data (Selic, IPCA, USD/BRL) and Focus market expectations |
-| LLM | Gemini 2.5 Flash (primary) with Groq `qwen/qwen3-32b` fallback, via LangChain4j OpenAI-compatible client, temperature 0 |
+| LLM | Gemini 2.5 Flash (primary) with Groq `qwen/qwen3.6-27b` fallback, via LangChain4j OpenAI-compatible client, temperature 0 |
 | Embeddings | Ollama `nomic-embed-text` (768-dim), local |
 | Sentiment | Lexicon-based financial sentiment scoring over news headlines (PT/EN) |
 | RAG | LangChain4j + pgvector for historical fundamentals retrieval |

@@ -181,7 +181,7 @@ public class StockAnalysisService {
             try {
                 rawResponse = groqModel.chat(prompt);
                 parsed = parser.parse(ticker, rawResponse);
-                modelUsed = "groq-qwen3-32b";
+                modelUsed = "groq-qwen3.6-27b";
                 log.info("Análise gerada via Groq (fallback) para {}", ticker);
             } catch (Exception groqEx) {
                 log.error("Groq também falhou para {}: {}", ticker, groqEx.getMessage());
