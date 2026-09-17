@@ -152,6 +152,15 @@ Sprint 2 completo (auditoria + FinBERT). Reranker de RAG segue adiado por acordo
 
 ## 📋 Backlog priorizado
 
+### Sequenciamento decidido (2026-09-17) — expansão para universo B3 completo
+
+Bernardo quer evoluir de 10 tickers hardcoded (`StockFetchJob.TICKERS`) para todas as ações da B3. Levantamento feito antes de iniciar: a expansão em si (~450 papéis) é troca de lista + paginação/priorização de indexação, mas **amplifica dois débitos já conhecidos** em vez de introduzir problema novo:
+
+- **Item 12 (rate limiting)** — hoje zero limite nos endpoints públicos de análise (`anti-patterns.md` § Segurança); com 10 tickers já é risco, com universo completo exposto qualquer scraper gera custo de LLM sem teto. **Bloqueante antes de aumentar o universo.**
+- **Item 6 (`SectorClassifier` errado)** — Utilities/Technology/Consumer Defensive mal mapeados contaminam prompt e benchmark hoje; mais tickers só multiplica o volume de análise com setor errado.
+
+Ordem acordada: **item 12 → item 6 → então expansão de universo (item 19)**. Depois, endereçar item 17 (Dockerfile/CI-CD ausente — anti-patterns.md § Arquitetura) e item 11 (`@ControllerAdvice`) antes de operar em produção com volume maior. Fallback Groq sem healthcheck automático (`anti-patterns.md` § IA, incidente 2026-08-10/2026-09-17) também pesa mais com mais tráfego — sem prioridade numerada ainda, mas citar se o assunto vier à tona.
+
 ### P0 — maior impacto na qualidade da análise
 1. ~~**Sidecar Python persistente (FastAPI)**~~ ✅ concluído em 2026-06-12 (ver seção acima)
 2. ~~**Dados oficiais CVM (ITR/DFP via dados abertos)**~~ ✅ concluído em 2026-06-12 (ver seção acima)
@@ -177,6 +186,7 @@ Sprint 2 completo (auditoria + FinBERT). Reranker de RAG segue adiado por acordo
 16. ~~**Frontend**: exibir `modelUsed`, `promptVersion` e resultados do backtest na tela de análise.~~ ✅ concluído em 2026-08-07 (ver seção acima) — Score Confidence incluído junto.
 17. **Curva DI futuro** para custo de capital (hoje só Selic spot + Focus).
 18. **Mais testes**: ComparisonService, BacktestService (correlação), SectorClassifier.
+19. **Expandir universo de tickers para B3 completo** — `StockFetchJob.TICKERS`/`HistoricalIndexingJob` hoje fixos em 10 papéis; trocar por fonte dinâmica (tabela de tickers B3 com filtro de liquidez/free float, não os ~450 brutos — muita smallcap sem dado confiável) + paginação/priorização da indexação diária (embeddings pgvector cresceriam ~45x). Revisar `SectorClassifier`/`SectorBenchmarks` (hoje só cobrem os setores dos 10 tickers atuais). **Bloqueado por itens 12 e 6** — ver "Sequenciamento decidido" acima.
 
 ---
 

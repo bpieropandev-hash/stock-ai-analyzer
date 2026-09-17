@@ -40,6 +40,11 @@ Fonte canônica: [`docs/ROADMAP.md`](../ROADMAP.md) — mantido separado por já
 - ~~P3-16: expor `modelUsed`/`promptVersion`/backtest no frontend.~~ — concluído 2026-08-07, junto com Score Confidence.
 - P3-17: curva DI futuro.
 - P3-18: mais testes (ComparisonService, BacktestService, SectorClassifier).
+- P3-19: expandir universo de tickers pra B3 completo (hoje 10 hardcoded em `StockFetchJob`). **Bloqueado**: ver sequenciamento abaixo.
+
+## Sequenciamento decidido (2026-09-17): expansão de universo de tickers
+
+Bernardo quer evoluir pra todas as ações da B3. Ordem acordada antes de tocar nisso: **P2-12 (rate limiting) → P1-6 (`SectorClassifier` errado) → então P3-19 (expansão)**. Motivo: os dois primeiros já são débito hoje e a expansão só amplifica o dano (custo de LLM sem teto; análise com setor errado em volume maior). Detalhe completo em `docs/ROADMAP.md` § "Sequenciamento decidido".
 
 ## Itens adicionais identificados fora do `ROADMAP.md` original (auditoria 2026-08-06)
 
