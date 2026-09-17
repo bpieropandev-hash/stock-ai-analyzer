@@ -177,7 +177,7 @@ Ordem acordada: **item 12 → item 6 → então expansão de universo (item 19)*
 ### P2 — robustez e operação
 10. ~~**Tabela de auditoria completa** — persistir snapshot de input + prompt + output bruto por análise.~~ ✅ concluído em 2026-08-07 (ver seção acima).
 11. **`@ControllerAdvice`** — controllers engolem exceções e retornam 500 sem corpo.
-12. **Rate limiting** nos endpoints públicos de análise (cada miss de cache custa chamada de LLM).
+12. ~~**Rate limiting** nos endpoints públicos de análise (cada miss de cache custa chamada de LLM).~~ ✅ concluído em 2026-09-17 (`RateLimitFilter`, ver `decisions.md`).
 13. ~~**Flyway** em vez de `ddl-auto: update` — schema versionado.~~ ✅ concluído em 2026-08-06 (ver seção acima)
 14. **Fluxo estrangeiro real da B3** (CSV diário publicado), short interest, aluguel BTC — substituir a dimensão "Sentimento Institucional" por dados institucionais de verdade.
 15. **Calendário de resultados e eventos corporativos** — análise na véspera de balanço tem validade diferente.

@@ -59,6 +59,14 @@ app:
   frontend:
     # Destino do redirect pós-login OAuth2 (SecurityConfig/OAuth2SuccessHandler).
     base-url: ${FRONTEND_BASE_URL:http://localhost:4200}
+  rate-limit:
+    # Protege endpoints que disparam análise via LLM (custo real por chamada) — RateLimitFilter.
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    requests-per-minute: ${RATE_LIMIT_PER_MINUTE:20}
+    # IPs do(s) proxy(s) reverso(s) confiável(is) — só com isso preenchido o X-Forwarded-For é
+    # usado pra identificar o cliente real; vazio (padrão) = sempre remoteAddr, X-Forwarded-For
+    # ignorado (evita bypass por header forjado quando não há proxy confiável na frente).
+    trusted-proxy-ips: ${RATE_LIMIT_TRUSTED_PROXY_IPS:}
 
 pgvector:
   host: ${POSTGRES_HOST:localhost}
