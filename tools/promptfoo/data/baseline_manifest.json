@@ -1,0 +1,142 @@
+[
+  {
+    "ticker": "PETR4",
+    "promptFile": "data/prompts/PETR4.txt",
+    "baseline": {
+      "scoreGeral": 6.7,
+      "fundamentos": 7.5,
+      "valuation": 9,
+      "regimeMomentum": 6,
+      "sentimentoInstitucional": 5.5,
+      "retornoAcionista": 6,
+      "gestaoRisco": 6
+    },
+    "plausibilitySignalsAtCapture": null
+  },
+  {
+    "ticker": "VALE3",
+    "promptFile": "data/prompts/VALE3.txt",
+    "baseline": {
+      "scoreGeral": 5.9,
+      "fundamentos": 6,
+      "valuation": 4,
+      "regimeMomentum": 5,
+      "sentimentoInstitucional": 5.5,
+      "retornoAcionista": 9,
+      "gestaoRisco": 6
+    },
+    "plausibilitySignalsAtCapture": null
+  },
+  {
+    "ticker": "WEGE3",
+    "promptFile": "data/prompts/WEGE3.txt",
+    "baseline": {
+      "scoreGeral": 6.2,
+      "fundamentos": 8,
+      "valuation": 3,
+      "regimeMomentum": 7,
+      "sentimentoInstitucional": 7,
+      "retornoAcionista": 3,
+      "gestaoRisco": 9
+    },
+    "plausibilitySignalsAtCapture": null
+  },
+  {
+    "ticker": "ITUB4",
+    "promptFile": "data/prompts/ITUB4.txt",
+    "baseline": {
+      "scoreGeral": 6.7,
+      "fundamentos": 8,
+      "valuation": 6,
+      "regimeMomentum": 4,
+      "sentimentoInstitucional": 5.5,
+      "retornoAcionista": 8.5,
+      "gestaoRisco": 8
+    },
+    "plausibilitySignalsAtCapture": null
+  },
+  {
+    "ticker": "BBAS3",
+    "promptFile": "data/prompts/BBAS3.txt",
+    "baseline": {
+      "scoreGeral": 6.1,
+      "fundamentos": 3,
+      "valuation": 9,
+      "regimeMomentum": 4.5,
+      "sentimentoInstitucional": 6.5,
+      "retornoAcionista": 6.5,
+      "gestaoRisco": 7
+    },
+    "plausibilitySignalsAtCapture": null
+  },
+  {
+    "ticker": "ABEV3",
+    "promptFile": "data/prompts/ABEV3.txt",
+    "baseline": {
+      "scoreGeral": 6.3,
+      "fundamentos": 9,
+      "valuation": 3,
+      "regimeMomentum": 4,
+      "sentimentoInstitucional": 6,
+      "retornoAcionista": 6,
+      "gestaoRisco": 10
+    },
+    "plausibilitySignalsAtCapture": null
+  },
+  {
+    "ticker": "LREN3",
+    "promptFile": "data/prompts/LREN3.txt",
+    "baseline": {
+      "scoreGeral": 7.7,
+      "fundamentos": 9,
+      "valuation": 9,
+      "regimeMomentum": 4.5,
+      "sentimentoInstitucional": 5.5,
+      "retornoAcionista": 9,
+      "gestaoRisco": 9
+    },
+    "plausibilitySignalsAtCapture": null
+  },
+  {
+    "ticker": "MGLU3",
+    "promptFile": "data/prompts/MGLU3.txt",
+    "baseline": {
+      "scoreGeral": 6,
+      "fundamentos": 2,
+      "valuation": 8,
+      "regimeMomentum": 4,
+      "sentimentoInstitucional": 7,
+      "retornoAcionista": 9,
+      "gestaoRisco": 6
+    },
+    "plausibilitySignalsAtCapture": "VAREJO_RETORNO_ALTO_SEM_LUCRO_CONSISTENTE"
+  },
+  {
+    "ticker": "TAEE11",
+    "promptFile": "data/prompts/TAEE11.txt",
+    "baseline": {
+      "scoreGeral": 4.3,
+      "fundamentos": 7,
+      "valuation": 2,
+      "regimeMomentum": 4,
+      "sentimentoInstitucional": 8,
+      "retornoAcionista": 3,
+      "gestaoRisco": 2
+    },
+    "plausibilitySignalsAtCapture": null
+  },
+  {
+    "ticker": "VIVT3",
+    "promptFile": "data/prompts/VIVT3.txt",
+    "baseline": {
+      "scoreGeral": 6.4,
+      "fundamentos": 7,
+      "valuation": 6,
+      "regimeMomentum": 5,
+      "sentimentoInstitucional": 6.5,
+      "retornoAcionista": 5.5,
+      "gestaoRisco": 8.5
+    },
+    "plausibilitySignalsAtCapture": null
+  }
+]

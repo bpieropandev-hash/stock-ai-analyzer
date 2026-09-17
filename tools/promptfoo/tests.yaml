@@ -1,0 +1,192 @@
+# GERADO por scripts/gen-tests.js a partir de data/baseline_manifest.json — não editar à mão.
+# Rode "npm run gen-tests" depois de recapturar o baseline.
+
+- description: "PETR4 regression vs baseline 2026-08-08"
+  vars:
+    prompt: file://data/prompts/PETR4.txt
+    ticker: PETR4
+    baselineScoreGeral: 6.7
+    baselineFundamentos: 7.5
+    baselineValuation: 9
+    baselineRegimeMomentum: 6
+    baselineSentimentoInstitucional: 5.5
+    baselineRetornoAcionista: 6
+    baselineGestaoRisco: 6
+  assert:
+    - type: is-json
+      value: file://asserts/schema.json
+    - type: javascript
+      value: file://asserts/score-drift.js
+    - type: llm-rubric
+      value: file://asserts/coherence-rubric.txt
+
+- description: "VALE3 regression vs baseline 2026-08-08"
+  vars:
+    prompt: file://data/prompts/VALE3.txt
+    ticker: VALE3
+    baselineScoreGeral: 5.9
+    baselineFundamentos: 6
+    baselineValuation: 4
+    baselineRegimeMomentum: 5
+    baselineSentimentoInstitucional: 5.5
+    baselineRetornoAcionista: 9
+    baselineGestaoRisco: 6
+  assert:
+    - type: is-json
+      value: file://asserts/schema.json
+    - type: javascript
+      value: file://asserts/score-drift.js
+    - type: llm-rubric
+      value: file://asserts/coherence-rubric.txt
+
+- description: "WEGE3 regression vs baseline 2026-08-08"
+  vars:
+    prompt: file://data/prompts/WEGE3.txt
+    ticker: WEGE3
+    baselineScoreGeral: 6.2
+    baselineFundamentos: 8
+    baselineValuation: 3
+    baselineRegimeMomentum: 7
+    baselineSentimentoInstitucional: 7
+    baselineRetornoAcionista: 3
+    baselineGestaoRisco: 9
+  assert:
+    - type: is-json
+      value: file://asserts/schema.json
+    - type: javascript
+      value: file://asserts/score-drift.js
+    - type: llm-rubric
+      value: file://asserts/coherence-rubric.txt
+
+- description: "ITUB4 regression vs baseline 2026-08-08"
+  vars:
+    prompt: file://data/prompts/ITUB4.txt
+    ticker: ITUB4
+    baselineScoreGeral: 6.7
+    baselineFundamentos: 8
+    baselineValuation: 6
+    baselineRegimeMomentum: 4
+    baselineSentimentoInstitucional: 5.5
+    baselineRetornoAcionista: 8.5
+    baselineGestaoRisco: 8
+  assert:
+    - type: is-json
+      value: file://asserts/schema.json
+    - type: javascript
+      value: file://asserts/score-drift.js
+    - type: llm-rubric
+      value: file://asserts/coherence-rubric.txt
+
+- description: "BBAS3 regression vs baseline 2026-08-08"
+  vars:
+    prompt: file://data/prompts/BBAS3.txt
+    ticker: BBAS3
+    baselineScoreGeral: 6.1
+    baselineFundamentos: 3
+    baselineValuation: 9
+    baselineRegimeMomentum: 4.5
+    baselineSentimentoInstitucional: 6.5
+    baselineRetornoAcionista: 6.5
+    baselineGestaoRisco: 7
+  assert:
+    - type: is-json
+      value: file://asserts/schema.json
+    - type: javascript
+      value: file://asserts/score-drift.js
+    - type: llm-rubric
+      value: file://asserts/coherence-rubric.txt
+
+- description: "ABEV3 regression vs baseline 2026-08-08"
+  vars:
+    prompt: file://data/prompts/ABEV3.txt
+    ticker: ABEV3
+    baselineScoreGeral: 6.3
+    baselineFundamentos: 9
+    baselineValuation: 3
+    baselineRegimeMomentum: 4
+    baselineSentimentoInstitucional: 6
+    baselineRetornoAcionista: 6
+    baselineGestaoRisco: 10
+  assert:
+    - type: is-json
+      value: file://asserts/schema.json
+    - type: javascript
+      value: file://asserts/score-drift.js
+    - type: llm-rubric
+      value: file://asserts/coherence-rubric.txt
+
+- description: "LREN3 regression vs baseline 2026-08-08"
+  vars:
+    prompt: file://data/prompts/LREN3.txt
+    ticker: LREN3
+    baselineScoreGeral: 7.7
+    baselineFundamentos: 9
+    baselineValuation: 9
+    baselineRegimeMomentum: 4.5
+    baselineSentimentoInstitucional: 5.5
+    baselineRetornoAcionista: 9
+    baselineGestaoRisco: 9
+  assert:
+    - type: is-json
+      value: file://asserts/schema.json
+    - type: javascript
+      value: file://asserts/score-drift.js
+    - type: llm-rubric
+      value: file://asserts/coherence-rubric.txt
+
+- description: "MGLU3 regression vs baseline 2026-08-08"
+  vars:
+    prompt: file://data/prompts/MGLU3.txt
+    ticker: MGLU3
+    baselineScoreGeral: 6
+    baselineFundamentos: 2
+    baselineValuation: 8
+    baselineRegimeMomentum: 4
+    baselineSentimentoInstitucional: 7
+    baselineRetornoAcionista: 9
+    baselineGestaoRisco: 6
+  assert:
+    - type: is-json
+      value: file://asserts/schema.json
+    - type: javascript
+      value: file://asserts/score-drift.js
+    - type: llm-rubric
+      value: file://asserts/coherence-rubric.txt
+
+- description: "TAEE11 regression vs baseline 2026-08-08"
+  vars:
+    prompt: file://data/prompts/TAEE11.txt
+    ticker: TAEE11
+    baselineScoreGeral: 4.3
+    baselineFundamentos: 7
+    baselineValuation: 2
+    baselineRegimeMomentum: 4
+    baselineSentimentoInstitucional: 8
+    baselineRetornoAcionista: 3
+    baselineGestaoRisco: 2
+  assert:
+    - type: is-json
+      value: file://asserts/schema.json
+    - type: javascript
+      value: file://asserts/score-drift.js
+    - type: llm-rubric
+      value: file://asserts/coherence-rubric.txt
+
+- description: "VIVT3 regression vs baseline 2026-08-08"
+  vars:
+    prompt: file://data/prompts/VIVT3.txt
+    ticker: VIVT3
+    baselineScoreGeral: 6.4
+    baselineFundamentos: 7
+    baselineValuation: 6
+    baselineRegimeMomentum: 5
+    baselineSentimentoInstitucional: 6.5
+    baselineRetornoAcionista: 5.5
+    baselineGestaoRisco: 8.5
+  assert:
+    - type: is-json
+      value: file://asserts/schema.json
+    - type: javascript
+      value: file://asserts/score-drift.js
+    - type: llm-rubric
+      value: file://asserts/coherence-rubric.txt

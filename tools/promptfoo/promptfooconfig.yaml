@@ -1,0 +1,62 @@
+# Regression testing do prompt de scoring (StockAnalysisService / SectorPromptConfig).
+# Ver README.md deste diretório antes de rodar — chama Gemini/Groq reais, custa dinheiro.
+
+description: "stock-ai-analyzer — regressão de prompt contra os 10 tickers da auditoria real de 2026-08-08"
+
+prompts:
+  - file://prompts/replay.txt
+
+providers:
+  # Mesmo endpoint OpenAI-compatible, mesmo modelName, mesma config (temperature 0,
+  # response_format json_object, maxTokens 8192) do EmbeddingStoreConfig#geminiChatModel.
+  - id: openai:chat:gemini-2.5-flash
+    label: gemini-2.5-flash
+    config:
+      apiBaseUrl: https://generativelanguage.googleapis.com/v1beta/openai/
+      apiKeyEnvar: GEMINI_API_KEY
+      temperature: 0
+      max_tokens: 8192
+      response_format: { type: json_object }
+
+  # Espelha EmbeddingStoreConfig#groqChatModel — permite comparar o mesmo prompt
+  # nos dois providers reais do sistema (não é só teste do Gemini isolado).
+  - id: openai:chat:qwen/qwen3.6-27b
+    label: groq-qwen3.6-27b
+    config:
+      apiBaseUrl: https://api.groq.com/openai/v1
+      apiKeyEnvar: GROQ_API_KEY
+      temperature: 0
+      max_tokens: 4096
+      response_format: { type: json_object }
+      # reasoning_effort precisa ir em passthrough: o provider openai:chat do
+      # promptfoo só inclui reasoning_effort solto no body pra modelos que
+      # batem o regex de "reasoning model" dele (o1/o3/o4/gpt-5/gpt-oss) —
+      # qwen/qwen3.6-27b não bate, então um campo reasoning_effort direto
+      # aqui seria descartado em silêncio. passthrough é espalhado sem
+      # filtro no body (ver dist/src/chat-BdcP1ptR.cjs, getOpenAiBody).
+      passthrough:
+        reasoning_effort: "none"
+
+defaultTest:
+  options:
+    # Juiz do llm-rubric fixado no Groq — nunca o mesmo modelo que gerou a resposta
+    # sendo avaliada quando o provider testado é o Gemini (caso mais comum, já que
+    # os 10 baselines vieram 100% do Gemini). Ver decisions.md: "LLM-as-judge só
+    # como sinalizador, juiz != gerador". Quando o provider testado é o próprio
+    # Groq, juiz==gerador é uma limitação conhecida, não um bug — documentado no README.
+    provider:
+      id: openai:chat:qwen/qwen3.6-27b
+      config:
+        apiBaseUrl: https://api.groq.com/openai/v1
+        apiKeyEnvar: GROQ_API_KEY
+        temperature: 0
+
+tests: file://tests.yaml
+
+evaluateOptions:
+  # Groq (tier on_demand) devolveu 413 "Request too large... tokens per minute"
+  # com o default (-j 4) — TPM estourava com geração+grading concorrentes.
+  # Confirmado real: -j 1 com 2s de espaço elimina o erro. Ajustar pra cima só
+  # se o tier da conta Groq mudar.
+  maxConcurrency: 1
+  delay: 2000

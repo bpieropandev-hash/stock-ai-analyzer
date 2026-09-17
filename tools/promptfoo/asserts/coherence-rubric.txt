@@ -1,0 +1,23 @@
+A resposta é um JSON com 6 dimensões de análise de ação (fundamentos, valuation,
+regimeMomentum, sentimentoInstitucional, retornoAcionista, gestaoRisco), cada
+uma com "score" (0-10) e "explicacao" (texto justificando o score).
+
+Para CADA dimensão, verifique se o "score" contradiz o que a própria
+"explicacao" diz. Contradição = FALHA. Exemplos do que contar como contradição:
+- explicacao menciona crescimento de lucro negativo, resultado inconsistente,
+  ausência de lucro recorrente ou prejuízo, mas o score está no bucket alto
+  (7 ou mais).
+- explicacao descreve fundamentos ou retorno ao acionista fortes/consistentes,
+  mas o score está no bucket baixo (4 ou menos).
+- explicacao qualifica um dado como positivo e o texto ao redor descreve o
+  oposto do valor do score (ex.: "dividendo real e consistente" com score no
+  bucket de "sem dividendos").
+
+Não avalie se o score está "certo" em termos absolutos — avalie SOMENTE se o
+score é consistente com o que a própria explicacao da mesma dimensão afirma.
+Ignore o campo "analise" (resumo geral) para este julgamento, olhe dimensão por
+dimensão.
+
+Se encontrar QUALQUER dimensão contraditória, a resposta deve reprovar e você
+deve citar qual dimensão e por quê. Se todas as 6 dimensões forem internamente
+consistentes, aprove.

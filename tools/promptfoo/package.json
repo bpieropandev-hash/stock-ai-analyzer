@@ -1,0 +1,13 @@
+{
+  "name": "stock-ai-analyzer-promptfoo",
+  "private": true,
+  "description": "Regression testing do prompt de scoring (backend/StockAnalysisService) contra Gemini/Groq reais.",
+  "scripts": {
+    "eval": "promptfoo eval -c promptfooconfig.yaml",
+    "view": "promptfoo view",
+    "gen-tests": "node scripts/gen-tests.js"
+  },
+  "devDependencies": {
+    "promptfoo": "0.122.0"
+  }
+}

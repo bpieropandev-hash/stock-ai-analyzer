@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "analise",
+    "resumo",
+    "simpleSummary",
+    "fundamentos",
+    "valuation",
+    "regimeMomentum",
+    "sentimentoInstitucional",
+    "retornoAcionista",
+    "gestaoRisco"
+  ],
+  "properties": {
+    "analise": { "type": "string", "minLength": 1 },
+    "resumo": { "type": "string", "minLength": 1 },
+    "simpleSummary": { "type": "string", "minLength": 1 },
+    "fundamentos": {
+      "type": "object",
+      "required": ["score", "explicacao"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 10 },
+        "explicacao": { "type": "string", "minLength": 1 }
+      }
+    },
+    "valuation": {
+      "type": "object",
+      "required": ["score", "explicacao"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 10 },
+        "explicacao": { "type": "string", "minLength": 1 }
+      }
+    },
+    "regimeMomentum": {
+      "type": "object",
+      "required": ["score", "explicacao"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 10 },
+        "explicacao": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sentimentoInstitucional": {
+      "type": "object",
+      "required": ["score", "explicacao"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 10 },
+        "explicacao": { "type": "string", "minLength": 1 }
+      }
+    },
+    "retornoAcionista": {
+      "type": "object",
+      "required": ["score", "explicacao"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 10 },
+        "explicacao": { "type": "string", "minLength": 1 }
+      }
+    },
+    "gestaoRisco": {
+      "type": "object",
+      "required": ["score", "explicacao"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 10 },
+        "explicacao": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

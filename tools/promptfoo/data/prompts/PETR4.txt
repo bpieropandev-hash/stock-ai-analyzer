@@ -1,0 +1,84 @@
+Responda APENAS com JSON válido, sem markdown, sem ```json, sem texto antes ou depois. Baseie sua análise EXCLUSIVAMENTE nos dados fornecidos no contexto.
+
+Você é um analista de investimentos especializado em ações da B3.
+
+DATA DA ANÁLISE: 2026-08-08 (ano de eleições gerais no Brasil — considere risco político onde o contexto setorial indicar)
+
+DADOS FUNDAMENTALISTAS:
+Ação: Petróleo Brasileiro S.A. - Petrobras (PETR4) | Setor: Energy | Segmento: Oil & Gas Integrated | Moeda: BRL
+Fonte: demonstrativos oficiais CVM (ITR/DFP, balanço de 2026-03-31, janela LTM) + dados de mercado yfinance
+
+VALUATION
+P/L: 5.19 | P/VPA: 1.25 | Market Cap: R$ 558,43 bi | Beta: -0.22
+
+RENTABILIDADE
+ROE: 24.10% | ROA: 8.63% | Margem Líquida: 21.60% | Margem Operacional: 28.88%
+Cresc. Receita (YoY): 0.44% | Cresc. Lucros: -7.23%
+
+BALANÇO PATRIMONIAL
+Dívida Total: R$ 371,69 bi | Caixa: R$ 34,29 bi | Receita Total: R$ 498,09 bi
+FCO: R$ 194,97 bi | FCL: R$ 82,93 bi | Dívida/Patrimônio: 0.83x
+
+DIVIDENDOS
+Dividend Yield: 7.22% | Últimos pagamentos: 2025-08-22: R$0.6719 | 2025-12-23: R$0.9521 | 2026-04-23: R$0.6631 | 2026-06-02: R$0.7010
+
+DADOS DE MERCADO
+Máx. 52s: 50.69 | Mín. 52s: 29.31 | Volume Médio: 39.783.818
+
+RESULTADOS TRIMESTRAIS
+2026-03-31: Receita R$ 123,69 bi, Lucro R$ 32,66 bi
+2025-12-31: Receita R$ 139,49 bi, Lucro R$ 18,47 bi
+2025-09-30: Receita R$ 125,01 bi, Lucro R$ 32,09 bi
+2025-06-30: Receita R$ 115,31 bi, Lucro R$ 25,95 bi
+
+CONTEXTO MACROECONÔMICO:
+Selic: 14.00% a.a. | IPCA 12m: 4.64% | USD/BRL: 5.09 | Brent: USD 83.55 (0.12%) | WTI: USD 78.18 (0.17%)
+Expectativas Focus (medianas) — Selic fim do ano: 13.75% | Selic ano seguinte: 12.00% | IPCA ano: 5.03% | IPCA ano seguinte: 4.22%
+Use as expectativas Focus para avaliar a trajetória dos juros — corte esperado de Selic favorece setores sensíveis a juros.
+
+INDICADORES TÉCNICOS:
+RSI (14): 46,70 | MACD Linha: 0,49 | Signal: 0,57 | Hist: -0,08 ↓ bearish
+SMA20: 41,71 | SMA50: 40,39 | Preço abaixo de SMA20, acima de SMA50
+Bollinger: Superior 43,69 / Médio 41,71 / Inferior 39,73
+Volume Ratio (20d): 2,86x
+Sinal Técnico: NEUTRAL
+
+SENTIMENTO DAS MANCHETES (análise lexical de palavras-chave — sinal de confiança limitada):
+Score: 6,90/10 | Distribuição: 2 positivas, 0 negativas, 3 neutras | Confiança média: 0,68
+
+FUNDAMENTOS HISTÓRICOS (trimestres anteriores):
+Sem contexto histórico disponível.
+
+CONTEXTO SETORIAL (ENERGIA):
+Selic tem impacto moderado. Brent e câmbio são determinantes. Em ano eleitoral, risco político deve penalizar gestaoRisco em 1-2 pontos.
+
+BENCHMARKS DO SETOR:
+Medianas reais dos pares do setor na B3 (9 empresas, demonstrativos CVM, calculadas em 2026-08-08) — P/L: 11.2 | P/VPA: 1.7 | ROE: 13.8% | Dividend Yield: 7.7% | Margem líquida: 10.0% | Dívida/PL: 1.1 | Compare os múltiplos da empresa com estas medianas ao calibrar valuation e retornoAcionista.
+
+RUBRICA DE PONTUAÇÃO (use estas âncoras, não impressões gerais):
+- Fundamentos — 8-10: ROE acima da faixa setorial, margens estáveis ou crescentes, lucro crescente nos trimestres; 5-7: rentabilidade dentro da faixa setorial, resultados estáveis; 2-4: margens em queda ou lucro irregular; 0-1: prejuízo recorrente.
+- Valuation — 8-10: múltiplos claramente abaixo da faixa setorial com FCL positivo; 5-7: múltiplos dentro da faixa; 2-4: múltiplos acima da faixa sem crescimento que justifique; 0-1: múltiplos extremos ou P/L negativo sem perspectiva. Use P/VPA quando o P/L estiver distorcido por resultado negativo.
+- Regime/Momentum — use technicalSignal como base: STRONG_BUY≈8, BUY≈6.5, NEUTRAL≈5, SELL≈3.5, STRONG_SELL≈2; ajuste ±1 pelo contexto fundamentalista. Momentum ruim com fundamentos fortes não deve ficar abaixo de 3.5.
+- Sentimento Institucional — use o score lexical como base, ajustando por beta e amplitude 52 semanas. Com poucas notícias ou confiança baixa, mantenha próximo de 5 (neutro) — não invente sinal.
+- Retorno ao Acionista — 8-10: yield acima da faixa setorial com histórico consistente e FCL que o sustenta; 5-7: yield dentro da faixa; 0-4: sem dividendos e sem recompras. Se dividendYield = 0 mas o histórico mostra pagamentos reais, use o histórico — yield zero pode ser falha de coleta.
+- Gestão de Risco — 8-10: caixa líquido ou dívida/patrimônio baixo para o setor, exposição cambial administrada; 5-7: alavancagem típica do setor; 0-4: alavancagem alta E vulnerabilidade direta à Selic (varejo de crédito, imobiliário alavancado). A Selic afeta todas as empresas — penalize além de 1 ponto apenas as particularmente vulneráveis.
+
+CALIBRAÇÃO:
+- Score acima de 7.0: empresas com múltiplas dimensões fortes segundo a rubrica.
+- Score abaixo de 3.0: problemas graves e estruturais.
+- Use a escala inteira — empresas diferentes devem receber scores claramente diferentes.
+- Não deflacione scores por fatores macro que afetam o mercado inteiro.
+
+Responda SOMENTE com JSON válido. O campo "analise" vem PRIMEIRO: raciocine brevemente sobre os dados antes de pontuar.
+
+{
+  "analise": "<raciocínio em 3-4 frases: pontos fortes, pontos fracos e o que pesa em cada dimensão>",
+  "fundamentos": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
+  "valuation": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
+  "regimeMomentum": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
+  "sentimentoInstitucional": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
+  "retornoAcionista": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
+  "gestaoRisco": {"score": <0-10>, "explicacao": "<1 frase citando o dado que sustenta o score>"},
+  "resumo": "<síntese em 2 frases>",
+  "simpleSummary": "<explique em 2 frases simples como se falasse com alguém que nunca investiu, sem jargões financeiros>"
+}
