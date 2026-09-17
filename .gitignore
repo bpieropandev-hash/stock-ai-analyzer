@@ -9,6 +9,9 @@ frontend/.angular/
 
 # Dependências
 frontend/node_modules/
+tools/promptfoo/node_modules/
+tools/promptfoo/results_*.json
+tools/promptfoo/groq_*.txt
 
 # Python
 __pycache__/
